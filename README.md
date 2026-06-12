@@ -131,19 +131,66 @@ No inputs required. Expected response:
 
 **2. parse_document_to_xml** — base64-encoded DOCX
 
-Generate a base64 payload from any `.docx` file:
+Generate a base64 string from a `.docx` file using whichever shell you have available, then paste it into the `content_base64` field. Set `filename` to `cv.docx`.
 
-```bash
-# PowerShell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("path\to\cv.docx")) | Set-Clipboard
+#### Windows — PowerShell (built-in, no install needed)
 
-# Bash / Git Bash
-base64 -w 0 path/to/cv.docx | clip        # Windows clip
-base64 -w 0 path/to/cv.docx | pbcopy      # macOS
-base64 -w 0 path/to/cv.docx               # print to stdout
+```powershell
+# Copy to clipboard
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\cv.docx")) | Set-Clipboard
+
+# Print to terminal (pipe into Inspector field manually)
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\cv.docx"))
 ```
 
-Paste the result into the `content_base64` field in the Inspector. Set `filename` to `cv.docx`.
+#### Windows — Command Prompt (CMD, built-in via certutil)
+
+`certutil` adds a header/footer line; the one-liner below strips them:
+
+```cmd
+certutil -encode cv.docx cv.b64 && findstr /v /c:- cv.b64 > cv_clean.b64 && type cv_clean.b64
+```
+
+Or use Python if it is installed (see below).
+
+#### Windows — Git Bash / WSL
+
+`base64` is bundled with Git for Windows and available in all WSL distros without any extra install:
+
+```bash
+base64 -w 0 cv.docx | clip          # copy to Windows clipboard
+base64 -w 0 cv.docx                 # print to terminal
+```
+
+#### Linux (pre-installed via GNU coreutils)
+
+```bash
+base64 -w 0 cv.docx                 # print (no line wrapping)
+base64 -w 0 cv.docx | xclip -sel c  # copy (requires xclip: apt install xclip)
+base64 -w 0 cv.docx | xsel --clipboard  # alternative clipboard tool
+```
+
+`base64` ships with every mainstream Linux distro. If somehow missing: `sudo apt install coreutils` / `sudo dnf install coreutils`.
+
+#### macOS (pre-installed)
+
+macOS ships BSD `base64`, which has a different flag set than the GNU version:
+
+```bash
+base64 -i cv.docx                   # print (BSD base64 wraps at 76 chars by default)
+base64 -i cv.docx | tr -d '\n'      # strip newlines — required for MCP Inspector input
+base64 -i cv.docx | tr -d '\n' | pbcopy   # copy to clipboard
+```
+
+> **Note:** The MCP Inspector `content_base64` field must receive a single unwrapped line. Always pipe through `tr -d '\n'` on macOS.
+
+#### Any platform — Python (fallback, no extra install if Python is present)
+
+```bash
+python -c "import base64, sys; print(base64.b64encode(open(sys.argv[1],'rb').read()).decode())" cv.docx
+```
+
+Works identically on Windows PowerShell, CMD, Git Bash, Linux, and macOS.
 
 Expected response shape:
 ```json
