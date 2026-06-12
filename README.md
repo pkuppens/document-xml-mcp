@@ -105,6 +105,104 @@ The pipeline is `Source → Parser → DocumentTree → Renderer → Sink`.
 
 ---
 
+## Testing with MCP Inspector
+
+[MCP Inspector](https://github.com/modelcontextprotocol/inspector) is an interactive browser-based UI for calling MCP tools manually. It requires Node.js (any recent LTS version).
+
+### Launch
+
+```bash
+# Run against the local server — Inspector proxies stdio automatically
+npx @modelcontextprotocol/inspector uv run document-xml-mcp
+```
+
+The command starts the server as a child process and opens the Inspector UI at `http://localhost:5173` (or prints the URL if that port is taken).
+
+### Try each tool
+
+**1. list_supported_document_types**
+
+No inputs required. Expected response:
+```json
+{ "supported": ["docx"], "planned": ["pdf", "html", "markdown", "odt"] }
+```
+
+---
+
+**2. parse_document_to_xml** — base64-encoded DOCX
+
+Generate a base64 payload from any `.docx` file:
+
+```bash
+# PowerShell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("path\to\cv.docx")) | Set-Clipboard
+
+# Bash / Git Bash
+base64 -w 0 path/to/cv.docx | clip        # Windows clip
+base64 -w 0 path/to/cv.docx | pbcopy      # macOS
+base64 -w 0 path/to/cv.docx               # print to stdout
+```
+
+Paste the result into the `content_base64` field in the Inspector. Set `filename` to `cv.docx`.
+
+Expected response shape:
+```json
+{
+  "xml": "<document>\n  <body>\n    ...\n  </body>\n</document>\n",
+  "warnings": [],
+  "stats": { "source_type": "docx", "paragraph_count": 12, "table_count": 1, "character_count": 843 }
+}
+```
+
+---
+
+**3. parse_file_to_xml** — local file path
+
+The server must be able to reach the file. Either:
+- Place the file under `./input/` and set `XML_PROCESSING_ALLOWED_INPUT_DIRS` to its absolute path, or
+- Pass the allowed dir via environment variable when launching:
+
+```bash
+XML_PROCESSING_ALLOWED_INPUT_DIRS=/absolute/path/to/input \
+  npx @modelcontextprotocol/inspector uv run document-xml-mcp
+```
+
+Then call the tool with:
+```json
+{ "path": "/absolute/path/to/input/cv.docx" }
+```
+
+---
+
+**4. parse_batch_to_xml** — directory of DOCX files
+
+```bash
+XML_PROCESSING_ALLOWED_INPUT_DIRS=/tmp/docs \
+XML_PROCESSING_ALLOWED_OUTPUT_DIRS=/tmp/xml \
+  npx @modelcontextprotocol/inspector uv run document-xml-mcp
+```
+
+Call with:
+```json
+{ "input_dir": "/tmp/docs", "output_dir": "/tmp/xml", "continue_on_error": true }
+```
+
+Expected response shape:
+```json
+{ "processed": 3, "failed": 0, "results": [ ... ] }
+```
+
+### Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
+| `warnings` contains "not within any allowed directory" | `path` or `input_dir` outside configured allow-list | Set `XML_PROCESSING_ALLOWED_INPUT_DIRS` to the correct path |
+| `warnings` contains "exceeds limit" | File larger than `MAX_FILE_SIZE_MB` | Raise the limit via env var or use a smaller file |
+| `warnings` contains "Unsupported file extension" | Non-DOCX file passed | Only `.docx` files are supported in this version |
+| Inspector cannot connect | Server crashed on startup | Run `uv run document-xml-mcp` directly to see the error |
+
+---
+
 ## Development Commands
 
 ```bash
