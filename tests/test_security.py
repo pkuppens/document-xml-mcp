@@ -24,6 +24,22 @@ def test_check_extension_passes_docx():
     check_extension("cv.docx")
 
 
+def test_check_extension_passes_docx_with_spaces_in_name():
+    check_extension("my cv 2024.docx")
+
+
+def test_check_extension_strips_surrounding_whitespace():
+    check_extension("  cv.docx  ")
+
+
+def test_check_extension_strips_surrounding_double_quotes():
+    check_extension('"cv with spaces.docx"')
+
+
+def test_check_extension_strips_surrounding_single_quotes():
+    check_extension("'cv.docx'")
+
+
 def test_check_extension_rejects_docm():
     with pytest.raises(ValueError, match=".docm"):
         check_extension("malicious.docm")
@@ -32,6 +48,20 @@ def test_check_extension_rejects_docm():
 def test_check_extension_rejects_unknown():
     with pytest.raises(ValueError, match="Unsupported"):
         check_extension("file.pdf")
+
+
+def test_check_extension_rejects_empty_after_strip():
+    with pytest.raises(ValueError, match="empty"):
+        check_extension('""')
+
+
+def test_check_extension_windows_path_uses_final_component():
+    # Path("C:\\docs\\cv.docx").suffix == ".docx" on all platforms
+    check_extension("C:\\docs\\cv.docx")
+
+
+def test_check_extension_unix_path_uses_final_component():
+    check_extension("/input/cv.docx")
 
 
 # --- zip_safety ---
