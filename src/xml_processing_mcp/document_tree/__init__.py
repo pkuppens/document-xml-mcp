@@ -1,0 +1,1 @@
+"""Normalised document tree."""
