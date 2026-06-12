@@ -7,221 +7,250 @@ Docker Compose stack (`n8n` + `document-xml-mcp`).
 |----------|----------------|-------------|
 | [A — Host](#scenario-a--ollama-on-the-host-machine-127001) | Windows/macOS host, `127.0.0.1:11434` | `http://host.docker.internal:11434` |
 | [B — On-prem](#scenario-b--on-premises-ollama-17231250211434) | Remote machine, `172.31.250.2:11434` | `http://172.31.250.2:11434` |
-| [C — Containerized](#scenario-c--ollama-in-docker-with-gpu) | Docker container with GPU | `http://ollama:11434` |
+| [C — Containerized](#scenario-c--ollama-in-docker-with-gpu) | Docker container with GPU, host models reused | `http://ollama:11434` |
 
 All three use **n8n's built-in Ollama credential** — no code changes needed.
+
+**Validation endpoint used throughout:** `GET /v1/models`
+(Ollama's OpenAI-compatible endpoint; available since Ollama 0.1.24.)
 
 ---
 
 ## Prerequisites
 
-### Docker runtime info (run once, paste result)
-
 ```powershell
+# Confirm Docker Desktop + nvidia runtime
 docker info | Select-String "Operating System|Runtimes"
 ```
 
-Expected for this machine:
+Expected output on this machine:
 
 ```
  Operating System: Docker Desktop
  Runtimes: nvidia runc io.containerd.runc.v2
 ```
 
-The `nvidia` runtime being listed means GPU containers (Scenario C) are already
-supported by your Docker Desktop installation.
+The `nvidia` runtime means GPU containers (Scenario C) are already supported.
 
 ---
 
 ## Scenario A — Ollama on the host machine (127.0.0.1)
 
-Docker containers cannot reach `127.0.0.1` on the host directly — that address
-resolves to the container itself. Docker Desktop (Windows and macOS) automatically
-provides `host.docker.internal` as a stable DNS name that routes to the host.
+Docker containers cannot reach `127.0.0.1` on the host — that address resolves to
+the **container itself**. Docker Desktop (Windows and macOS) automatically provides
+the DNS name `host.docker.internal` that routes to the host from inside any container.
 
-### Why this matters
+### Why Ollama refuses Docker connections by default
 
-Ollama on Windows listens on `127.0.0.1:11434` by default. Traffic from a Docker
-container arrives from the Docker virtual network (`10.x.x.x` or similar), not from
-`127.0.0.1`. Ollama will **refuse** the connection unless told to accept it.
+Ollama on Windows binds to `127.0.0.1:11434` by default. Traffic from a Docker
+container arrives from the Docker virtual network (`10.x.x.x` range), not from
+`127.0.0.1`, so Ollama drops it.
 
-### Step A1 — Allow Ollama to accept connections from Docker
+### Step A1 — Allow Ollama to accept non-loopback connections
 
-Set `OLLAMA_HOST=0.0.0.0` so Ollama binds to all interfaces:
+Set `OLLAMA_HOST=0.0.0.0` as a **persistent system environment variable**, then
+restart Ollama:
 
 1. Open **Windows Settings → System → Advanced system settings → Environment Variables**.
 2. Under **System variables**, click **New**:
    - Variable name: `OLLAMA_HOST`
    - Variable value: `0.0.0.0`
-3. Click OK, then **right-click the Ollama system-tray icon → Quit**.
-4. Reopen Ollama from the Start menu.
+3. Click OK on all dialogs.
+4. **Right-click the Ollama system-tray icon → Quit**.
+5. Reopen Ollama from the Start menu (or `Start-Process ollama`).
 
-> **Alternative (PowerShell, per-session only):**
+> **Per-session alternative (PowerShell — lost on next restart):**
 >
 > ```powershell
+> Stop-Process -Name ollama -ErrorAction SilentlyContinue
 > $env:OLLAMA_HOST = "0.0.0.0"
-> ollama serve
+> Start-Process ollama
+> Start-Sleep 3
 > ```
 
-**Verify — run this and paste the output:**
+**VERIFY A1 — Ollama still answers on host:**
 
 ```powershell
-# Should still return your model list (Ollama still works normally)
-curl -s http://127.0.0.1:11434/api/tags | ConvertFrom-Json | Select-Object -Expand models | Select-Object name
+curl -s http://127.0.0.1:11434/v1/models | ConvertFrom-Json | Select-Object -Expand data | Select-Object id
 ```
 
-### Step A2 — Confirm `host.docker.internal` resolves from a container
+Expected: list of model IDs. If empty or error → `OLLAMA_HOST` not applied, repeat Step A1.
+
+**VERIFY A2 — Reachable from inside a Docker container:**
 
 ```powershell
-docker run --rm curlimages/curl:latest `
-  curl -s http://host.docker.internal:11434/api/tags
+docker run --rm curlimages/curl:latest curl -s http://host.docker.internal:11434/v1/models
 ```
 
-**Expected:** JSON list of models (same as Step A1).  
-**If you get "Connection refused":** `OLLAMA_HOST=0.0.0.0` was not applied — repeat Step A1.  
-**If you get "Could not resolve host":** Docker Desktop may need a restart.
+Expected: same JSON. If `Connection refused` → `OLLAMA_HOST=0.0.0.0` not yet active.
+If `Could not resolve host` → restart Docker Desktop.
 
 ### Step A3 — Configure n8n Ollama credential
 
 1. Open n8n at http://localhost:5678.
-2. Go to **Settings → Credentials → Add credential → Ollama**.
-3. Set **Base URL**: `http://host.docker.internal:11434`
-4. Click **Save & test** — you should see "Connection successful".
-5. In your AI Agent node, select this credential and choose a model (e.g. `qwen3:8b`).
+2. **Settings → Credentials → Add credential → Ollama**.
+3. **Base URL**: `http://host.docker.internal:11434`
+4. **Save & test** — expect "Connection successful".
 
 ---
 
 ## Scenario B — On-premises Ollama (172.31.250.2:11434)
 
-Docker containers can route to arbitrary IPs that the host machine can reach.
-No special Docker configuration is needed — n8n simply connects to the remote IP.
+Containers can reach any IP that the host machine can route to. No special Docker
+configuration is needed.
 
-### Step B1 — Verify the on-prem Ollama is reachable from the host
-
-```powershell
-curl -s http://172.31.250.2:11434/api/tags | ConvertFrom-Json | Select-Object -Expand models | Select-Object name
-```
-
-**Expected:** list of models available on that server.  
-**If timeout/refused:** the on-prem Ollama may not be running, or a firewall is blocking port 11434.
-
-### Step B2 — Verify reachability from inside a Docker container
+**VERIFY B1 — Reachable from the host:**
 
 ```powershell
-docker run --rm curlimages/curl:latest `
-  curl -s http://172.31.250.2:11434/api/tags
+curl -s http://172.31.250.2:11434/v1/models | ConvertFrom-Json | Select-Object -Expand data | Select-Object id
 ```
 
-**Expected:** same model list as Step B1.  
-**If refused from Docker but fine from host:** the on-prem server's `OLLAMA_HOST` may be set to `127.0.0.1`. Ask the admin to set it to `0.0.0.0`.
+Expected: model list from the remote server.
+If timeout/refused: the remote Ollama may not be running, or port 11434 is firewalled.
+
+**VERIFY B2 — Reachable from inside a Docker container:**
+
+```powershell
+docker run --rm curlimages/curl:latest curl -s http://172.31.250.2:11434/v1/models
+```
+
+Expected: same list as B1.
+If refused from Docker but fine from host: the remote server's `OLLAMA_HOST` is
+`127.0.0.1`. Ask the admin to set it to `0.0.0.0` and restart Ollama.
 
 ### Step B3 — Configure n8n Ollama credential
 
-Same as Scenario A, Step A3, but use:
-
-- **Base URL**: `http://172.31.250.2:11434`
+Same as Scenario A Step A3, but set **Base URL** to `http://172.31.250.2:11434`.
 
 ---
 
 ## Scenario C — Ollama in Docker with GPU
 
-This adds an `ollama` container to the Compose stack. The container gets direct
-GPU access through Docker Desktop's NVIDIA integration.
+The `ollama` service is defined in `docker-compose.yml` under `profiles: [ollama]`.
+It mounts the host's `%USERPROFILE%\.ollama` directory so all models you have already
+downloaded on the host are **instantly available** — no re-download needed.
+Models pulled inside the container are also written back to the host directory.
 
-### Prerequisites for GPU containers
+```
+%USERPROFILE%\.ollama   ←──────────────────────────────┐
+                                                        │ bind mount
+docker compose ollama container /root/.ollama  ─────────┘
+```
 
-Your `docker info` output already shows `nvidia` in Runtimes, which means the
-**NVIDIA Container Toolkit** is installed. Confirm GPU is visible:
+Host port `11435` is used (not `11434`) to avoid conflicts with any Ollama already
+running natively on the host.
+
+### Step C1 — Confirm GPU is visible to Docker
 
 ```powershell
-# Should show your GPU
-docker run --rm --gpus all nvidia/cuda:12.3.1-base-ubuntu22.04 nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.3.1-base-ubuntu22.04 nvidia-smi 2>&1 | Select-Object -First 8
 ```
 
-**Expected:** `nvidia-smi` table showing your GPU name, driver version, CUDA version.  
-**If "could not select device driver":** enable GPU in Docker Desktop → Settings → Resources → GPU.
+Expected: `nvidia-smi` header table with your GPU name, driver version, CUDA version.
+If "could not select device driver" → Docker Desktop → Settings → Resources → GPU → enable.
 
-### docker-compose.yml already includes the `ollama` profile
-
-The `docker-compose.yml` in this repo has an `ollama` profile ready to use.
-Start the full stack with GPU Ollama:
+### Step C2 — Start the Ollama container
 
 ```powershell
-# Windows PowerShell
-$env:MCP_TRANSPORT = "sse"
-docker compose --profile n8n --profile ollama up --build
+# Start only the ollama service (no n8n or MCP server yet)
+docker compose --profile ollama up -d ollama
 ```
 
-```bash
-# Git Bash / Linux / macOS
-MCP_TRANSPORT=sse docker compose --profile n8n --profile ollama up --build
-```
-
-### Step C1 — Pull a model into the Ollama container
-
-The container starts empty. Pull a model (this downloads into the `ollama_data` volume):
+Wait ~5 seconds for the process to start, then:
 
 ```powershell
-# Pull qwen3:8b (5 GB) — adjust to any model you prefer
-docker compose exec ollama ollama pull qwen3:8b
+docker compose logs ollama
 ```
 
-List available models in the container:
+Expected last line: something like `Listening on 0.0.0.0:11434 (version 0.x.y)`.
+
+### Step C3 — Verify models are visible (the key validation)
+
+From the **host** (port 11435):
 
 ```powershell
-docker compose exec ollama ollama list
+curl -s http://localhost:11435/v1/models | ConvertFrom-Json | Select-Object -Expand data | Select-Object id
 ```
 
-### Step C2 — Verify the container is reachable
+From **inside the Docker network** (what n8n will use):
 
 ```powershell
-docker compose exec n8n wget -qO- http://ollama:11434/api/tags
+docker run --rm `
+  --network document-xml-mcp_default `
+  curlimages/curl:latest `
+  curl -s http://ollama:11434/v1/models
 ```
 
-**Expected:** JSON with the models pulled in Step C1.  
-(The hostname `ollama` resolves because both services share the default Compose network.)
+**Expected for both:** JSON array of model objects including `qwen3:8b`, `qwen3:4b-instruct`,
+etc. — the same models already on the host.
 
-### Step C3 — Configure n8n Ollama credential
+If the list is empty but no error: the bind mount resolved but Ollama hasn't scanned
+the directory yet — wait 10 s and retry.
+If `Connection refused`: check `docker compose logs ollama` for startup errors.
 
-Same as Scenario A, Step A3, but use:
-
-- **Base URL**: `http://ollama:11434`
-
-### GPU verification inside the container
+### Step C4 — GPU verification inside the container
 
 ```powershell
 docker compose exec ollama nvidia-smi
 ```
 
-**Expected:** `nvidia-smi` output matching your host GPU.
+Expected: `nvidia-smi` output matching the host GPU.
+
+### Step C5 — Start the full stack
+
+```powershell
+$env:MCP_TRANSPORT = "sse"
+docker compose --profile n8n --profile ollama up --build
+```
+
+### Step C6 — Configure n8n Ollama credential
+
+Same as Scenario A Step A3, but set **Base URL** to `http://ollama:11434`.
+
+---
+
+## Pulling additional models into the container
+
+Because the container mounts `%USERPROFILE%\.ollama`, models pulled here are saved
+on the host and persist across container recreations:
+
+```powershell
+# Pull a model (writes to host %USERPROFILE%\.ollama\models)
+docker compose exec ollama ollama pull qwen3:8b
+
+# Verify
+docker compose exec ollama ollama list
+```
 
 ---
 
 ## Choosing a model in n8n
 
-Once the credential is saved and tested, open the **AI Agent** node:
+Once the credential is saved, open the **AI Agent** node:
 
-1. Under **Chat Model**, select **Ollama Chat Model**.
-2. Select the credential you created.
-3. In **Model**, type or select a model name (e.g. `qwen3:8b`).
+1. **Chat Model** → select **Ollama Chat Model**.
+2. Select the credential.
+3. **Model** → type or pick a model name (e.g. `qwen3:8b`).
 
-Models that support `tools` capability work best with the AI Agent + MCP Client Tool
-combination. From your local Ollama, the following models have `tools` support:
+Models with `tools` capability work best with the AI Agent + MCP Client Tool
+combination. Verified tools-capable models on this machine:
 
-| Model | Size | Notes |
-|-------|------|-------|
-| `qwen3:8b` | 5 GB | Good balance of speed and quality |
-| `qwen3:4b-instruct` | 2.5 GB | Fastest; lighter on RAM |
-| `llama3.2:latest` | 2 GB | Meta's 3B model |
-| `llama3.1:8b` | 5 GB | Solid general-purpose |
-| `qwen3-coder:30b` | 19 GB | Strong at structured output |
-| `qwen3.5:35b` | 24 GB | High quality, needs 32+ GB VRAM or RAM |
+| Model | Size | Capabilities |
+|-------|------|-------------|
+| `qwen3:8b` | 5 GB | completion, tools, thinking |
+| `qwen3:4b-instruct` | 2.5 GB | completion, tools |
+| `llama3.2:latest` | 2 GB | completion, tools |
+| `llama3.1:8b` | 5 GB | completion, tools |
+| `qwen3-coder:30b` | 19 GB | completion, tools |
+| `qwen3.5:35b` | 24 GB | vision, completion, tools, thinking |
+| `qwen3-coder-next:latest` | 52 GB | completion, tools |
 
-Verify a model's capabilities:
+Check any model's capabilities:
 
 ```powershell
-# Returns capabilities list including "tools" if supported
-curl -s http://127.0.0.1:11434/api/show -d '{"name":"qwen3:8b"}' |
+curl -s http://127.0.0.1:11434/api/show `
+  -H "Content-Type: application/json" `
+  -d '{"name":"qwen3:8b"}' |
   ConvertFrom-Json | Select-Object -Expand capabilities
 ```
 
@@ -229,22 +258,24 @@ curl -s http://127.0.0.1:11434/api/show -d '{"name":"qwen3:8b"}' |
 
 ## Troubleshooting
 
-| Symptom | Check | Fix |
-|---------|-------|-----|
-| n8n "Connection refused" to host Ollama | Step A2 | Set `OLLAMA_HOST=0.0.0.0`, restart Ollama |
-| n8n "Connection refused" to on-prem | Step B2 | Check firewall on `172.31.250.2`; verify `OLLAMA_HOST` on that server |
-| GPU container exits immediately | Step C prereq | Enable GPU in Docker Desktop settings |
-| Ollama container starts but model not found | Step C1 | `docker compose exec ollama ollama pull <model>` |
-| AI Agent doesn't call MCP tools | — | Ensure model has `tools` capability (see table above) |
-| `nvidia-smi` not found in container | — | Use `ollama/ollama` image, not bare `nvidia/cuda` |
+| Symptom | Command to run | Fix |
+|---------|---------------|-----|
+| Scenario A: empty response from Docker | `VERIFY A2` | Set `OLLAMA_HOST=0.0.0.0`, restart Ollama (Step A1) |
+| Scenario B: timeout from Docker | `VERIFY B2` | Check firewall on `172.31.250.2`; verify `OLLAMA_HOST` on remote |
+| Scenario C: models list empty | `docker compose logs ollama` | Wait 10 s; confirm bind mount path exists |
+| Scenario C: GPU not found | Step C1 | Enable GPU in Docker Desktop → Resources → GPU |
+| n8n "Cannot connect to Ollama" | n8n credential test | Confirm Base URL has no trailing slash; check container is healthy |
+| AI Agent ignores MCP tools | — | Ensure model has `tools` capability (see table above) |
+| Container port conflict on 11435 | `netstat -ano \| findstr 11435` | Change host port in docker-compose.yml `"11436:11434"` |
 
 ---
 
 ## References
 
-- [Ollama environment variables](https://github.com/ollama/ollama/blob/main/docs/faq.md#how-do-i-configure-ollama-server) — `OLLAMA_HOST`, `OLLAMA_ORIGINS`, etc.
-- [NVIDIA Container Toolkit installation](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
-- [Docker Desktop GPU support](https://docs.docker.com/desktop/gpu/)
+- [Ollama FAQ — OLLAMA_HOST and OLLAMA_ORIGINS](https://github.com/ollama/ollama/blob/main/docs/faq.md)
+- [Ollama OpenAI-compatible API (`/v1/models`)](https://github.com/ollama/ollama/blob/main/docs/openai.md)
 - [Ollama Docker Hub image](https://hub.docker.com/r/ollama/ollama)
-- [n8n Ollama credential docs](https://docs.n8n.io/integrations/builtin/credentials/ollama/)
+- [NVIDIA Container Toolkit — installation guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+- [Docker Desktop GPU support](https://docs.docker.com/desktop/gpu/)
+- [n8n Ollama credential](https://docs.n8n.io/integrations/builtin/credentials/ollama/)
 - [n8n AI Agent node](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/)
