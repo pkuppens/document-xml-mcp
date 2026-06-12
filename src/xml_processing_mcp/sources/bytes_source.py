@@ -2,6 +2,7 @@
 
 import base64
 import logging
+from pathlib import Path, PureWindowsPath
 
 _log = logging.getLogger(__name__)
 
@@ -11,16 +12,10 @@ def _looks_like_path(value: str) -> bool:
     s = value.strip().strip("\"'")
     if not s:
         return False
-    # POSIX absolute path
+    # Path("/posix/path").is_absolute() returns False on Windows; check explicitly.
     if s[0] == "/":
         return True
-    # Windows drive  e.g. C:\  or  C:/
-    if len(s) >= 3 and s[1] == ":" and s[2] in ("/", "\\"):
-        return True
-    # UNC path  e.g. \\server\share
-    if s.startswith("\\\\"):
-        return True
-    return False
+    return Path(s).is_absolute() or PureWindowsPath(s).is_absolute()
 
 
 class BytesSource:
@@ -49,8 +44,7 @@ class Base64Source:
 
         if _looks_like_path(self._encoded):
             _log.warning(
-                "Base64Source: content_base64 looks like a file path %r — "
-                "use parse_file_to_xml to parse files by path",
+                "Base64Source: content_base64 looks like a file path %r — use parse_file_to_xml to parse files by path",
                 self._encoded[:120],
             )
             raise ValueError(

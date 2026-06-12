@@ -205,33 +205,42 @@ Expected response shape:
 
 **3. parse_file_to_xml** — local file path
 
-The server must be able to reach the file. Either:
-- Place the file under `./input/` and set `XML_PROCESSING_ALLOWED_INPUT_DIRS` to its absolute path, or
-- Pass the allowed dir via environment variable when launching:
+The project ships an `input/` directory (gitignored except `.gitkeep`) for test files.
+Copy your DOCX there and use a project-relative path — no absolute paths or usernames needed:
 
 ```bash
-XML_PROCESSING_ALLOWED_INPUT_DIRS=/absolute/path/to/input \
+# Copy your DOCX to the input/ directory
+cp /path/to/cv.docx input/CV_Test_1.docx          # Linux / macOS / Git Bash
+copy C:\path\to\cv.docx input\CV_Test_1.docx       # Windows CMD / PowerShell
+```
+
+Launch Inspector with `input` as the allowed directory (relative to the project root):
+
+```bash
+XML_PROCESSING_ALLOWED_INPUT_DIRS=input \
   npx @modelcontextprotocol/inspector uv run document-xml-mcp
 ```
 
 Then call the tool with:
 ```json
-{ "path": "/absolute/path/to/input/cv.docx" }
+{ "path": "input/CV_Test_1.docx" }
 ```
+
+If the file is not found, verify the server's working directory is the project root (it is when launched with `uv run document-xml-mcp`).
 
 ---
 
 **4. parse_batch_to_xml** — directory of DOCX files
 
 ```bash
-XML_PROCESSING_ALLOWED_INPUT_DIRS=/tmp/docs \
-XML_PROCESSING_ALLOWED_OUTPUT_DIRS=/tmp/xml \
+XML_PROCESSING_ALLOWED_INPUT_DIRS=input \
+XML_PROCESSING_ALLOWED_OUTPUT_DIRS=output \
   npx @modelcontextprotocol/inspector uv run document-xml-mcp
 ```
 
 Call with:
 ```json
-{ "input_dir": "/tmp/docs", "output_dir": "/tmp/xml", "continue_on_error": true }
+{ "input_dir": "input", "output_dir": "output", "continue_on_error": true }
 ```
 
 Expected response shape:

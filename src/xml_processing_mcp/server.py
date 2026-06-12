@@ -52,8 +52,7 @@ def parse_document_to_xml(filename: str, content_base64: str, document_type: str
         Generate with (PowerShell): [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\\path\\to\\cv.docx"))
         Generate with (Bash/macOS): base64 -w 0 cv.docx   (Linux) / base64 -i cv.docx | tr -d '\\n'  (macOS)
     """
-    _log.info("tool=parse_document_to_xml filename=%r document_type=%r base64_len=%d",
-              filename, document_type, len(content_base64))
+    _log.info("tool=parse_document_to_xml filename=%r document_type=%r base64_len=%d", filename, document_type, len(content_base64))
     req = ParseDocumentRequest(filename=filename, content_base64=content_base64, document_type=document_type, profile=profile)
     try:
         source = Base64Source(req.content_base64)
@@ -72,23 +71,27 @@ def parse_file_to_xml(path: str, document_type: str = "docx", profile: str = "ge
 
     Use this tool when the file already exists on the machine running the MCP server.
     The path must be inside one of the configured allowed input directories
-    (default: /input; override with XML_PROCESSING_ALLOWED_INPUT_DIRS).
+    (default: input/; override with XML_PROCESSING_ALLOWED_INPUT_DIRS).
 
-    If you are running the server locally (e.g. via 'uv run document-xml-mcp'), paths on
-    your own machine are valid — e.g. C:\\Users\\you\\Downloads\\cv.docx on Windows.
-    To allow that directory set: XML_PROCESSING_ALLOWED_INPUT_DIRS=C:\\Users\\you\\Downloads
+    Recommended: copy your DOCX to the project's input/ directory and use a relative path.
+    Example: copy cv.docx to input/CV_Test_1.docx, then call with path="input/CV_Test_1.docx".
 
     Parameters
     ----------
     path:
-        Full absolute path to the document file on the server's filesystem.
-        Example (Windows): C:\\Users\\you\\Downloads\\cv.docx
-        Example (Linux/macOS): /home/you/documents/cv.docx
+        Path to the document file. Relative paths are resolved from the server's working
+        directory (the project root when launched with 'uv run document-xml-mcp').
+        Example: input/CV_Test_1.docx
     """
     cfg = get_settings()
     resolved = Path(path).resolve()
-    _log.info("tool=parse_file_to_xml path=%r resolved=%s document_type=%r allowed_input_dirs=%s",
-              path, resolved, document_type, cfg.allowed_input_dirs)
+    _log.info(
+        "tool=parse_file_to_xml path=%r resolved=%s document_type=%r allowed_input_dirs=%s",
+        path,
+        resolved,
+        document_type,
+        cfg.allowed_input_dirs,
+    )
     req = ParseFileRequest(path=path, document_type=document_type, profile=profile)
     try:
         source = FileSource(req.path, cfg.allowed_input_dirs)
@@ -115,8 +118,13 @@ def parse_batch_to_xml(
     """
     cfg = get_settings()
     input_resolved = Path(input_dir).resolve()
-    _log.info("tool=parse_batch_to_xml input_dir=%r resolved=%s output_dir=%r allowed_input_dirs=%s",
-              input_dir, input_resolved, output_dir, cfg.allowed_input_dirs)
+    _log.info(
+        "tool=parse_batch_to_xml input_dir=%r resolved=%s output_dir=%r allowed_input_dirs=%s",
+        input_dir,
+        input_resolved,
+        output_dir,
+        cfg.allowed_input_dirs,
+    )
     req = ParseBatchRequest(
         input_dir=input_dir, output_dir=output_dir, document_type=document_type, continue_on_error=continue_on_error
     )
