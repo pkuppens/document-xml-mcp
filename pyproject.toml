@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xml-processing-mcp"
+version = "0.1.0"
+description = "MCP server: document files in, simplified semantic XML out"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp[cli]>=1.0.0",
+    "lxml>=5.0.0",
+    "defusedxml>=0.7.1",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+]
+
+[project.scripts]
+document-xml-mcp = "xml_processing_mcp.server:run"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10.0",
+    "lxml-stubs>=0.5.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/xml_processing_mcp"]
+
+[tool.ruff]
+line-length = 132
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+strict = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=xml_processing_mcp --cov-report=term-missing"
