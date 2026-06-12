@@ -1,0 +1,9 @@
+services:
+  document-xml-mcp:
+    build: .
+    volumes:
+      - ./input:/input:ro
+      - ./output:/output
+    environment:
+      XML_PROCESSING_ALLOWED_INPUT_DIRS: /input
+      XML_PROCESSING_ALLOWED_OUTPUT_DIRS: /output
