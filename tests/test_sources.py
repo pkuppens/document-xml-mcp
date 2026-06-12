@@ -26,6 +26,26 @@ def test_base64_source_decodes():
     assert Base64Source(encoded).get_document_bytes() == data
 
 
+def test_base64_source_rejects_windows_path():
+    with pytest.raises(ValueError, match="parse_file_to_xml"):
+        Base64Source(r"C:\Users\piete\Downloads\cv.docx").get_document_bytes()
+
+
+def test_base64_source_rejects_quoted_windows_path():
+    with pytest.raises(ValueError, match="parse_file_to_xml"):
+        Base64Source('"C:\\Users\\piete\\Downloads\\cv.docx"').get_document_bytes()
+
+
+def test_base64_source_rejects_unix_path():
+    with pytest.raises(ValueError, match="parse_file_to_xml"):
+        Base64Source("/home/user/cv.docx").get_document_bytes()
+
+
+def test_base64_source_rejects_unc_path():
+    with pytest.raises(ValueError, match="parse_file_to_xml"):
+        Base64Source("\\\\server\\share\\cv.docx").get_document_bytes()
+
+
 def test_file_source_reads_file():
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp) / "doc.docx"

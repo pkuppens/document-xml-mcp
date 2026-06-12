@@ -11,7 +11,6 @@ from xml_processing_mcp.models import (
     ParseBatchResponse,
     ParseBatchResult,
     ParseDocumentRequest,
-    ParseDocumentResponse,
     ParseFileRequest,
     SupportedTypesResponse,
 )
@@ -36,9 +35,25 @@ def list_supported_document_types() -> dict:
 
 @mcp.tool()
 def parse_document_to_xml(filename: str, content_base64: str, document_type: str = "docx", profile: str = "generic") -> dict:
-    """Parse a base64-encoded document and return simplified XML."""
-    _log.info("tool=parse_document_to_xml filename=%r document_type=%r profile=%r base64_len=%d",
-              filename, document_type, profile, len(content_base64))
+    """Parse an uploaded document (provided as base64-encoded bytes) and return simplified XML.
+
+    Use this tool when you have the FILE CONTENTS available as base64.
+    If you want to parse a file that exists on the server's filesystem, use parse_file_to_xml instead.
+
+    Parameters
+    ----------
+    filename:
+        The file name including extension (e.g. "cv.docx").
+        Used for extension validation and output naming only — NOT a file path.
+        Do NOT put a full path here; put only the bare filename.
+    content_base64:
+        The file contents encoded as a base64 string.
+        Must be the encoded BYTES of the document, not a file path.
+        Generate with (PowerShell): [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\\path\\to\\cv.docx"))
+        Generate with (Bash/macOS): base64 -w 0 cv.docx   (Linux) / base64 -i cv.docx | tr -d '\\n'  (macOS)
+    """
+    _log.info("tool=parse_document_to_xml filename=%r document_type=%r base64_len=%d",
+              filename, document_type, len(content_base64))
     req = ParseDocumentRequest(filename=filename, content_base64=content_base64, document_type=document_type, profile=profile)
     try:
         source = Base64Source(req.content_base64)
@@ -47,21 +62,28 @@ def parse_document_to_xml(filename: str, content_base64: str, document_type: str
         _log.info("parse_document_to_xml OK filename=%r stats=%s", filename, resp.stats)
         return resp.model_dump()
     except Exception as exc:
-        _log.warning("parse_document_to_xml FAILED filename=%r error=%s", filename, exc, exc_info=True)
-        return ParseDocumentResponse(
-            xml="",
-            warnings=[str(exc)],
-            stats={"source_type": document_type, "paragraph_count": 0, "table_count": 0, "character_count": 0},  # type: ignore[arg-type]
-        ).model_dump()
+        _log.warning("parse_document_to_xml FAILED filename=%r: %s", filename, exc, exc_info=True)
+        raise
 
 
 @mcp.tool()
 def parse_file_to_xml(path: str, document_type: str = "docx", profile: str = "generic") -> dict:
-    """Parse a document from a local file path and return simplified XML.
+    """Parse a document from a file path on the SERVER's filesystem and return simplified XML.
 
-    NOTE: 'path' must be a path on the SERVER's filesystem, not the client's.
-    The server process working directory is the directory where it was launched.
-    Allowed input directories are configured via XML_PROCESSING_ALLOWED_INPUT_DIRS.
+    Use this tool when the file already exists on the machine running the MCP server.
+    The path must be inside one of the configured allowed input directories
+    (default: /input; override with XML_PROCESSING_ALLOWED_INPUT_DIRS).
+
+    If you are running the server locally (e.g. via 'uv run document-xml-mcp'), paths on
+    your own machine are valid — e.g. C:\\Users\\you\\Downloads\\cv.docx on Windows.
+    To allow that directory set: XML_PROCESSING_ALLOWED_INPUT_DIRS=C:\\Users\\you\\Downloads
+
+    Parameters
+    ----------
+    path:
+        Full absolute path to the document file on the server's filesystem.
+        Example (Windows): C:\\Users\\you\\Downloads\\cv.docx
+        Example (Linux/macOS): /home/you/documents/cv.docx
     """
     cfg = get_settings()
     resolved = Path(path).resolve()
@@ -75,12 +97,8 @@ def parse_file_to_xml(path: str, document_type: str = "docx", profile: str = "ge
         _log.info("parse_file_to_xml OK path=%r stats=%s", path, resp.stats)
         return resp.model_dump()
     except Exception as exc:
-        _log.warning("parse_file_to_xml FAILED path=%r resolved=%s error=%s", path, resolved, exc, exc_info=True)
-        return ParseDocumentResponse(
-            xml="",
-            warnings=[str(exc)],
-            stats={"source_type": document_type, "paragraph_count": 0, "table_count": 0, "character_count": 0},  # type: ignore[arg-type]
-        ).model_dump()
+        _log.warning("parse_file_to_xml FAILED path=%r resolved=%s: %s", path, resolved, exc, exc_info=True)
+        raise
 
 
 @mcp.tool()
@@ -90,9 +108,10 @@ def parse_batch_to_xml(
     document_type: str = "docx",
     continue_on_error: bool = True,
 ) -> dict:
-    """Parse all documents in input_dir and write XML files to output_dir.
+    """Parse all .docx files in input_dir and write XML files to output_dir.
 
-    NOTE: Both paths must be accessible on the SERVER's filesystem.
+    Both paths must be accessible on the SERVER's filesystem and inside the
+    configured allowed directories (XML_PROCESSING_ALLOWED_INPUT/OUTPUT_DIRS).
     """
     cfg = get_settings()
     input_resolved = Path(input_dir).resolve()
@@ -104,14 +123,9 @@ def parse_batch_to_xml(
 
     allowed = [Path(d).resolve() for d in cfg.allowed_input_dirs]
     if not any(input_resolved == a or input_resolved.is_relative_to(a) for a in allowed):
-        _log.warning("parse_batch_to_xml REJECTED input_dir=%r not in allowed=%s", input_dir, cfg.allowed_input_dirs)
-        return ParseBatchResponse(
-            processed=0,
-            failed=0,
-            results=[
-                ParseBatchResult(filename="", output_path=None, warnings=[], error=f"Input dir '{req.input_dir}' not allowed")
-            ],
-        ).model_dump()
+        msg = f"Input dir '{req.input_dir}' is not within any allowed directory: {cfg.allowed_input_dirs}"
+        _log.warning("parse_batch_to_xml REJECTED input_dir=%r: %s", input_dir, msg)
+        raise ValueError(msg)
 
     files = list(input_resolved.glob("*.docx"))
     _log.info("parse_batch_to_xml found %d .docx files in %s", len(files), input_resolved)
@@ -131,7 +145,7 @@ def parse_batch_to_xml(
             processed += 1
             _log.debug("parse_batch_to_xml OK file=%s out=%s", file.name, out_path)
         except Exception as exc:
-            _log.warning("parse_batch_to_xml FAILED file=%s error=%s", file.name, exc, exc_info=True)
+            _log.warning("parse_batch_to_xml FAILED file=%s: %s", file.name, exc, exc_info=True)
             results.append(ParseBatchResult(filename=file.name, output_path=None, warnings=[], error=str(exc)))
             failed += 1
             if not req.continue_on_error:

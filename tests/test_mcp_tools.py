@@ -4,6 +4,8 @@ import base64
 import io
 import zipfile
 
+import pytest
+
 from xml_processing_mcp.server import (
     list_supported_document_types,
     parse_document_to_xml,
@@ -26,6 +28,8 @@ def _make_docx_b64() -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
+# --- success cases ---
+
 def test_list_supported_document_types():
     result = list_supported_document_types()
     assert result["supported"] == ["docx"]
@@ -39,19 +43,40 @@ def test_parse_document_to_xml_valid():
     assert result["warnings"] == []
 
 
-def test_parse_document_to_xml_invalid_base64():
-    result = parse_document_to_xml(filename="test.docx", content_base64="!!notbase64!!")
-    # Should return error in warnings, not raise
-    assert result["warnings"]
+# --- error cases: tools must RAISE, not return silent empty-xml dicts ---
+
+def test_parse_document_to_xml_invalid_base64_raises():
+    with pytest.raises(Exception):
+        parse_document_to_xml(filename="test.docx", content_base64="!!notbase64!!")
 
 
-def test_parse_file_to_xml_disallowed_path(monkeypatch):
-    # Default allowed_input_dirs = ["/input"]; /etc/passwd is outside
-    result = parse_file_to_xml(path="/etc/passwd")
-    assert result["warnings"]
-    assert result["xml"] == ""
+def test_parse_document_to_xml_windows_path_in_base64_raises():
+    """Providing a file path in content_base64 must raise with a helpful message."""
+    with pytest.raises(ValueError, match="parse_file_to_xml"):
+        parse_document_to_xml(
+            filename="cv.docx",
+            content_base64=r"C:\Users\piete\Downloads\CV_Pieter_Kuppens.docx",
+        )
 
 
-def test_parse_document_to_xml_unsupported_extension():
-    result = parse_document_to_xml(filename="file.pdf", content_base64=_make_docx_b64())
-    assert result["warnings"]
+def test_parse_document_to_xml_quoted_windows_path_in_base64_raises():
+    with pytest.raises(ValueError, match="parse_file_to_xml"):
+        parse_document_to_xml(
+            filename="cv.docx",
+            content_base64='"C:\\Users\\piete\\Downloads\\CV_Pieter_Kuppens.docx"',
+        )
+
+
+def test_parse_document_to_xml_unix_path_in_base64_raises():
+    with pytest.raises(ValueError, match="parse_file_to_xml"):
+        parse_document_to_xml(filename="cv.docx", content_base64="/home/user/cv.docx")
+
+
+def test_parse_file_to_xml_disallowed_path_raises():
+    with pytest.raises(ValueError, match="not within any allowed directory"):
+        parse_file_to_xml(path="/etc/passwd")
+
+
+def test_parse_document_to_xml_unsupported_extension_raises():
+    with pytest.raises(ValueError, match="Unsupported"):
+        parse_document_to_xml(filename="file.pdf", content_base64=_make_docx_b64())
