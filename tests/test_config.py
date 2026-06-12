@@ -11,7 +11,7 @@ def test_defaults():
     assert s.allowed_output_dirs == ["/output"]
     assert s.include_headers_footers is False
     assert s.include_comments is False
-    assert s.log_level == "INFO"
+    assert s.log_level == "DEBUG"
 
 
 def test_env_override(monkeypatch):
