@@ -1,6 +1,7 @@
 """MCP server — four tools for document-to-XML processing."""
 
 import logging
+import os
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -165,8 +166,16 @@ def parse_batch_to_xml(
 
 def run() -> None:  # pragma: no cover — MCP server entrypoint; starts an infinite event loop
     setup_logging()
-    _log.info("Starting document-xml-mcp server")
-    mcp.run()
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    _log.info("Starting document-xml-mcp server transport=%s", transport)
+    if transport == "sse":
+        # FastMCP reads FASTMCP_HOST / FASTMCP_PORT from the environment.
+        # Map our MCP_HOST / MCP_PORT vars so callers only need one set of names.
+        os.environ.setdefault("FASTMCP_HOST", os.environ.get("MCP_HOST", "0.0.0.0"))
+        os.environ.setdefault("FASTMCP_PORT", os.environ.get("MCP_PORT", "8000"))
+        mcp.run(transport="sse")
+    else:
+        mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":  # pragma: no cover

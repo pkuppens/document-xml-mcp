@@ -1,0 +1,101 @@
+{
+  "name": "Document to XML (MCP)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "parse-document",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "parse-document"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.prompt || 'Parse the document and return the XML.' }}",
+        "hasOutputParser": false,
+        "options": {
+          "systemMessage": "You are a document processing assistant. When the user provides a filename and base64-encoded document content, call the parse_document_to_xml tool and return the resulting XML. If the user provides a file path accessible on the server, call parse_file_to_xml instead."
+        }
+      },
+      "id": "a1b2c3d4-0002-0002-0002-000000000002",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "sseEndpoint": "http://document-xml-mcp:8000/sse"
+      },
+      "id": "a1b2c3d4-0003-0003-0003-000000000003",
+      "name": "document-xml-mcp",
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1,
+      "position": [500, 480]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { xml: $json.output, success: true } }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0004-0004-0004-000000000004",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [760, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "document-xml-mcp": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "document-xml-mcp-example"
+  },
+  "tags": ["document-processing", "mcp", "xml"],
+  "notes": "Example workflow: POST to /webhook/parse-document with JSON body {\"filename\": \"cv.docx\", \"content_base64\": \"<base64>\", \"prompt\": \"Parse this document to XML\"}. Requires: AI model credential on the AI Agent node, and document-xml-mcp running with MCP_TRANSPORT=sse."
+}

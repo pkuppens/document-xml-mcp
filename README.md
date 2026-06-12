@@ -21,13 +21,31 @@ uv run document-xml-mcp
 ## Run with Docker
 
 ```bash
-# Build and run
-docker compose up
+# Build and start (batch / stdio mode)
+docker compose up --build
 
 # Place .docx files in ./input, XML output appears in ./output
 ```
 
 The container reads from `/input` (read-only) and writes to `/output`.
+
+---
+
+## Use with n8n
+
+[n8n](https://n8n.io) is an open-source workflow automation tool. document-xml-mcp exposes
+an HTTP/SSE endpoint when started with `MCP_TRANSPORT=sse`, which n8n connects to via its
+**MCP Client Tool** node (available from n8n 1.28+).
+
+```bash
+# Start document-xml-mcp in SSE mode + n8n
+MCP_TRANSPORT=sse docker compose --profile n8n up --build
+```
+
+Then open **http://localhost:5678**, import `n8n/workflows/parse-document.json`, add your
+AI model credential, and POST a DOCX to the webhook.
+
+→ **Full setup guide:** [docs/n8n-setup.md](docs/n8n-setup.md)
 
 ---
 
@@ -294,6 +312,7 @@ Possible future epics:
 - XML post-processing and XSLT support
 - JSON and Markdown renderers
 - CV-specific document normalisation
-- n8n and OpenAI agent workflow examples
+- n8n workflow examples ← see [docs/n8n-setup.md](docs/n8n-setup.md)
+- OpenAI agent workflow examples
 - HTTP transport and authentication
 - Kubernetes deployment manifests
