@@ -69,6 +69,5 @@ class DocumentProcessingService:
         _log.debug("process writing to sink %s document_id=%r", type(effective_sink).__name__, filename)
         effective_sink.write_xml(filename, xml)
 
-        _log.info("process done filename=%r paragraphs=%d tables=%d xml_chars=%d",
-                  filename, para_count, table_count, len(xml))
+        _log.info("process done filename=%r paragraphs=%d tables=%d xml_chars=%d", filename, para_count, table_count, len(xml))
         return ParseDocumentResponse(xml=xml, warnings=[], stats=stats)

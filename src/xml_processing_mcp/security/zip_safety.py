@@ -31,8 +31,7 @@ def safe_open_docx(data: bytes) -> zipfile.ZipFile:
 
     total_uncompressed = 0
     for info in entries:
-        _log.debug("safe_open_docx entry name=%r compressed=%d uncompressed=%d",
-                   info.filename, info.compress_size, info.file_size)
+        _log.debug("safe_open_docx entry name=%r compressed=%d uncompressed=%d", info.filename, info.compress_size, info.file_size)
         if ".." in info.filename or info.filename.startswith("/"):
             zf.close()
             _log.warning("safe_open_docx rejected: path traversal in entry %r", info.filename)
@@ -41,9 +40,7 @@ def safe_open_docx(data: bytes) -> zipfile.ZipFile:
         if total_uncompressed > _MAX_UNCOMPRESSED_BYTES:
             zf.close()
             _log.warning("safe_open_docx rejected: ZIP bomb total_uncompressed=%d", total_uncompressed)
-            raise ValueError(
-                f"ZIP uncompressed size exceeds {_MAX_UNCOMPRESSED_BYTES // (1024 * 1024)} MB — possible ZIP bomb"
-            )
+            raise ValueError(f"ZIP uncompressed size exceeds {_MAX_UNCOMPRESSED_BYTES // (1024 * 1024)} MB — possible ZIP bomb")
 
     _log.debug("safe_open_docx passed all checks total_uncompressed=%d", total_uncompressed)
     return zf

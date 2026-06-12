@@ -163,11 +163,11 @@ def parse_batch_to_xml(
     return ParseBatchResponse(processed=processed, failed=failed, results=results).model_dump()
 
 
-def run() -> None:
+def run() -> None:  # pragma: no cover — MCP server entrypoint; starts an infinite event loop
     setup_logging()
     _log.info("Starting document-xml-mcp server")
     mcp.run()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     run()

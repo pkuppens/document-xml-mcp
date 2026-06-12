@@ -1,6 +1,8 @@
 """Tests for application configuration."""
 
-from xml_processing_mcp.config import Settings
+import logging
+
+from xml_processing_mcp.config import Settings, setup_logging
 
 
 def test_defaults():
@@ -20,3 +22,20 @@ def test_env_override(monkeypatch):
     s = Settings()
     assert s.max_file_size_mb == 50
     assert s.log_level == "DEBUG"
+
+
+def test_setup_logging_configures_root_logger():
+    root = logging.getLogger()
+    # Remove existing handlers so basicConfig can reconfigure the level.
+    original_handlers = root.handlers[:]
+    root.handlers.clear()
+    try:
+        setup_logging(Settings.model_construct(log_level="WARNING"))
+        assert root.level == logging.WARNING
+    finally:
+        root.handlers = original_handlers
+
+
+def test_setup_logging_no_args_uses_get_settings():
+    """setup_logging() with no argument must not raise."""
+    setup_logging()  # covers the `if settings is None: settings = get_settings()` branch

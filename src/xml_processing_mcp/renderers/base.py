@@ -5,7 +5,7 @@ from typing import Protocol
 from xml_processing_mcp.document_tree.nodes import DocumentNode
 
 
-class DocumentRenderer(Protocol):
+class DocumentRenderer(Protocol):  # pragma: no cover
     """Renders a normalised document tree to a string."""
 
     def render(self, document: DocumentNode) -> str: ...

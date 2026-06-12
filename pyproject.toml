@@ -46,3 +46,13 @@ strict = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=xml_processing_mcp --cov-report=term-missing"
+
+[tool.coverage.run]
+omit = [
+    # Pure Protocol stubs — used only as type annotations, never instantiated
+    "*/renderers/base.py",
+    "*/parsers/base.py",
+    "*/sinks/base.py",
+    "*/sources/base.py",
+]
+

@@ -26,7 +26,7 @@ def _parse_filename(filename: str) -> Path:
         raise ValueError(f"Filename is empty after stripping whitespace/quotes: {filename!r}")
     try:
         return Path(cleaned)
-    except Exception as exc:
+    except Exception as exc:  # pragma: no cover — Path() constructor does not raise in practice
         _log.debug("check_extension: Path() failed for %r: %s", cleaned, exc)
         raise ValueError(f"Cannot parse filename {cleaned!r} as a path: {exc}") from exc
 

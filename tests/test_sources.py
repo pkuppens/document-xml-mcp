@@ -26,6 +26,14 @@ def test_base64_source_decodes():
     assert Base64Source(encoded).get_document_bytes() == data
 
 
+def test_base64_source_empty_string_is_not_a_path():
+    """Empty string (after stripping) must not be flagged as a path — it should fail at decode."""
+    from xml_processing_mcp.sources.bytes_source import _looks_like_path
+
+    assert _looks_like_path("") is False
+    assert _looks_like_path('""') is False
+
+
 def test_base64_source_rejects_windows_path():
     with pytest.raises(ValueError, match="parse_file_to_xml"):
         Base64Source(r"C:\Users\piete\Downloads\cv.docx").get_document_bytes()

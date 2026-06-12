@@ -112,3 +112,29 @@ def test_link_detected(parsed):
     links = [n for n in nodes if n.tag == "link"]
     assert len(links) == 1
     assert links[0].text == "Click here"
+
+
+def test_missing_body_returns_empty_document():
+    """Document XML with no w:body must not crash — returns document/body with no children."""
+    no_body_xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>"""
+    doc = DocxParser().parse(_make_docx(no_body_xml))
+    assert doc.tag == "document"
+    assert doc.children[0].tag == "body"
+    assert doc.children[0].children == []
+
+
+def test_unknown_body_element_is_silently_skipped():
+    """Non-paragraph, non-table elements in w:body must be ignored without error."""
+    xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:bookmarkStart w:id="0" w:name="start"/>
+    <w:p><w:r><w:t>Hello</w:t></w:r></w:p>
+  </w:body>
+</w:document>"""
+    doc = DocxParser().parse(_make_docx(xml))
+    nodes = _flatten(doc)
+    paragraphs = [n for n in nodes if n.tag == "paragraph"]
+    assert len(paragraphs) == 1
+    assert paragraphs[0].text == "Hello"
