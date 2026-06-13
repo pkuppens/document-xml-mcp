@@ -13,7 +13,7 @@ def test_defaults():
     assert s.allowed_output_dirs == ["/output"]
     assert s.include_headers_footers is False
     assert s.include_comments is False
-    assert s.log_level == "DEBUG"
+    assert s.log_level == "INFO"
 
 
 def test_env_override(monkeypatch):
@@ -22,6 +22,29 @@ def test_env_override(monkeypatch):
     s = Settings()
     assert s.max_file_size_mb == 50
     assert s.log_level == "DEBUG"
+
+
+def test_dir_list_plain_string(monkeypatch):
+    """docker-compose style: plain path string becomes a single-element list."""
+    monkeypatch.setenv("XML_PROCESSING_ALLOWED_INPUT_DIRS", "/input")
+    monkeypatch.setenv("XML_PROCESSING_ALLOWED_OUTPUT_DIRS", "/output")
+    s = Settings()
+    assert s.allowed_input_dirs == ["/input"]
+    assert s.allowed_output_dirs == ["/output"]
+
+
+def test_dir_list_comma_separated(monkeypatch):
+    """Multiple directories can be specified as a comma-separated string."""
+    monkeypatch.setenv("XML_PROCESSING_ALLOWED_INPUT_DIRS", "/input,/data,/uploads")
+    s = Settings()
+    assert s.allowed_input_dirs == ["/input", "/data", "/uploads"]
+
+
+def test_dir_list_json_array(monkeypatch):
+    """JSON array format is also accepted for forward compatibility."""
+    monkeypatch.setenv("XML_PROCESSING_ALLOWED_INPUT_DIRS", '["/input", "/data"]')
+    s = Settings()
+    assert s.allowed_input_dirs == ["/input", "/data"]
 
 
 def test_setup_logging_configures_root_logger():
