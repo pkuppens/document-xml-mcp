@@ -104,11 +104,23 @@ All settings use the `XML_PROCESSING_` environment variable prefix.
 |----------|---------|-------------|
 | `XML_PROCESSING_MAX_FILE_SIZE_MB` | `20` | Maximum accepted file size in MB |
 | `XML_PROCESSING_MAX_BATCH_SIZE` | `200` | Maximum files per batch operation |
-| `XML_PROCESSING_ALLOWED_INPUT_DIRS` | `/input` | Comma-separated list of allowed input directories |
-| `XML_PROCESSING_ALLOWED_OUTPUT_DIRS` | `/output` | Comma-separated list of allowed output directories |
+| `XML_PROCESSING_ALLOWED_INPUT_DIRS` | `/input` | Allowed input directories — plain path, comma-separated, or JSON array |
+| `XML_PROCESSING_ALLOWED_OUTPUT_DIRS` | `/output` | Allowed output directories — plain path, comma-separated, or JSON array |
 | `XML_PROCESSING_INCLUDE_HEADERS_FOOTERS` | `false` | Include page headers and footers in output |
 | `XML_PROCESSING_INCLUDE_COMMENTS` | `false` | Include document comments in output |
 | `XML_PROCESSING_LOG_LEVEL` | `INFO` | Logging level |
+
+**Directory list formats** (all three are equivalent):
+```bash
+# Plain path (docker-compose friendly)
+XML_PROCESSING_ALLOWED_INPUT_DIRS=/input
+
+# Comma-separated (multiple directories)
+XML_PROCESSING_ALLOWED_INPUT_DIRS=/input,/data
+
+# JSON array
+XML_PROCESSING_ALLOWED_INPUT_DIRS=["/input", "/data"]
+```
 
 ---
 
@@ -274,6 +286,69 @@ Expected response shape:
 | `warnings` contains "exceeds limit" | File larger than `MAX_FILE_SIZE_MB` | Raise the limit via env var or use a smaller file |
 | `warnings` contains "Unsupported file extension" | Non-DOCX file passed | Only `.docx` files are supported in this version |
 | Inspector cannot connect | Server crashed on startup | Run `uv run document-xml-mcp` directly to see the error |
+
+---
+
+## Sample Clients
+
+Python client scripts in `examples/` exercise the MCP protocol directly — useful for
+integration testing, CI smoke tests, and as a starting point for custom automation.
+
+### stdio client — local server
+
+Use when the server runs on the same machine. The client spawns the server as a child process.
+
+```bash
+# List supported types only
+uv run python examples/client_stdio.py
+
+# Full demo: parse a local DOCX file
+uv run python examples/client_stdio.py --docx input/CV_Test_1.docx
+```
+
+Expected output (with a real CV file):
+```
+=== Connected to document-xml-mcp via stdio ===
+
+Supported types : ['docx']
+Planned types   : ['pdf', 'html', 'markdown', 'odt']
+
+parse_document_to_xml
+  paragraphs : 61
+  tables     : 12
+  xml (first 300 chars): <document> ...
+
+parse_file_to_xml
+  paragraphs : 61
+  warnings   : []
+
+parse_batch_to_xml
+  processed : 1
+  failed    : 0
+  CV_Test_1.docx -> OK
+```
+
+### SSE client — Docker, remote, or n8n stack
+
+Use when the server is already running over HTTP/SSE. Works with Docker containers,
+docker-compose stacks, self-hosted servers, and externally accessible instances.
+
+```bash
+# Start the server in SSE mode first (pick one):
+MCP_TRANSPORT=sse uv run document-xml-mcp                 # local
+MCP_TRANSPORT=sse docker compose up --build               # Docker
+MCP_TRANSPORT=sse docker compose --profile n8n up --build # with n8n
+
+# Connect and parse a file (file read locally, sent as base64)
+uv run python examples/client_sse.py --docx input/CV_Test_1.docx
+
+# Connect to a non-default host/port
+uv run python examples/client_sse.py --url http://192.168.1.100:8000/sse --docx input/CV_Test_1.docx
+```
+
+> **Note:** `parse_document_to_xml` (base64 upload) works from any client — the file
+> is encoded on the client side. `parse_file_to_xml` and `parse_batch_to_xml` require
+> the file to exist on the **server's** filesystem inside an allowed input directory.
 
 ---
 
