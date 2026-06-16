@@ -100,9 +100,9 @@ Always reference the issue number even if no GitHub issue exists (use the PLAN.m
 
 ## Error Handling at Tool Boundaries
 
-MCP tools must never raise unhandled exceptions to the caller.
-Wrap the entire tool body in `try/except`, return errors as `warnings: [str(exc)]` in the response model.
-Log the full traceback with `exc_info=True` at `WARNING` level so it is visible in server logs.
+MCP tools log exceptions at `WARNING` level with `exc_info=True`, then re-raise them.
+The MCP framework converts uncaught exceptions into structured error responses delivered to the caller — do not swallow exceptions or return errors as a `warnings` field in the response model.
+This keeps successful responses clean and lets callers distinguish errors from partial results.
 
 ---
 
