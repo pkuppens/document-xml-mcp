@@ -1,5 +1,6 @@
 """Tests for MCP tools wired in server.py."""
 
+import asyncio
 import base64
 import io
 import zipfile
@@ -7,10 +8,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from mcp.server.fastmcp.exceptions import ToolError
 
 from xml_processing_mcp.config import Settings
 from xml_processing_mcp.server import (
     list_supported_document_types,
+    mcp,
     parse_batch_to_xml,
     parse_document_to_xml,
     parse_file_to_xml,
@@ -139,6 +142,33 @@ def test_parse_batch_to_xml_disallowed_input_raises(tmp_path):
     with patch("xml_processing_mcp.server.get_settings", return_value=_settings_for(tmp_path)):
         with pytest.raises(ValueError, match="not within any allowed directory"):
             parse_batch_to_xml(input_dir="/etc", output_dir=str(tmp_path))
+
+
+# --- MCP-layer error propagation ---
+# These tests call tools via mcp.call_tool() — the same path the MCP client
+# uses — to verify that tool exceptions surface as ToolError with an
+# actionable message rather than disappearing silently.
+
+
+def test_mcp_layer_propagates_error_with_clear_message():
+    """A tool error must reach the MCP client as a ToolError containing the original message.
+
+    This exercises the full FastMCP dispatch path so that an LLM client
+    receives a structured error it can use to make a better follow-up call.
+    """
+    with pytest.raises(ToolError, match="Unsupported"):
+        asyncio.run(
+            mcp.call_tool(
+                "parse_document_to_xml",
+                {"filename": "report.pdf", "content_base64": _make_docx_b64()},
+            )
+        )
+
+
+def test_mcp_layer_path_error_suggests_allowed_dirs(tmp_path):
+    """Path-outside-allowed-dirs error must propagate to the MCP client with a clear message."""
+    with pytest.raises(ToolError, match="not within any allowed directory"):
+        asyncio.run(mcp.call_tool("parse_file_to_xml", {"path": "/etc/passwd"}))
 
 
 def test_parse_batch_to_xml_continue_on_error_false_stops_on_first_failure(tmp_path):
