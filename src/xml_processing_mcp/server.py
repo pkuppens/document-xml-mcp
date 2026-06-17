@@ -164,18 +164,31 @@ def parse_batch_to_xml(
     return ParseBatchResponse(processed=processed, failed=failed, results=results).model_dump()
 
 
-def run() -> None:  # pragma: no cover — MCP server entrypoint; starts an infinite event loop
-    setup_logging()
-    transport = os.environ.get("MCP_TRANSPORT", "stdio")
-    _log.info("Starting document-xml-mcp server transport=%s", transport)
+def _start_transport(transport: str) -> None:
+    """Dispatch to the appropriate MCP transport.
+
+    Separated from ``run()`` so that unit tests can call this function directly
+    with ``mcp.run`` patched, without starting an actual event loop.
+    """
     if transport == "sse":
         # FastMCP reads FASTMCP_HOST / FASTMCP_PORT from the environment.
         # Map our MCP_HOST / MCP_PORT vars so callers only need one set of names.
         os.environ.setdefault("FASTMCP_HOST", os.environ.get("MCP_HOST", "0.0.0.0"))
         os.environ.setdefault("FASTMCP_PORT", os.environ.get("MCP_PORT", "8000"))
         mcp.run(transport="sse")
+    elif transport == "streamable-http":
+        os.environ.setdefault("FASTMCP_HOST", os.environ.get("MCP_HOST", "0.0.0.0"))
+        os.environ.setdefault("FASTMCP_PORT", os.environ.get("MCP_PORT", "8000"))
+        mcp.run(transport="streamable-http")
     else:
         mcp.run(transport="stdio")
+
+
+def run() -> None:  # pragma: no cover — MCP server entrypoint; starts an infinite event loop
+    setup_logging()
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    _log.info("Starting document-xml-mcp server transport=%s", transport)
+    _start_transport(transport)
 
 
 if __name__ == "__main__":  # pragma: no cover

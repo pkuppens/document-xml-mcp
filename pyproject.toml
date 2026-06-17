@@ -22,6 +22,7 @@ document-xml-mcp = "xml_processing_mcp.server:run"
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
     "pytest-cov>=5.0.0",
     "ruff>=0.4.0",
     "mypy>=1.10.0",
@@ -46,7 +47,10 @@ strict = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=xml_processing_mcp --cov-report=term-missing"
+asyncio_mode = "auto"
 markers = [
+    "integration: marks tests as integration tests (requires uv on PATH)",
+    "slow: marks tests as slow",
     "real_file: marks tests that use real fixture files from the input/ directory (deselect with '-m not real_file')",
 ]
 
@@ -59,5 +63,7 @@ omit = [
     "*/sources/base.py",
     # Real-file regression tests: golden-file write path only runs on first run
     "tests/test_real_docx.py",
+    # Integration tests — excluded from normal coverage run
+    "tests/test_integration_stdio.py",
 ]
 
