@@ -75,7 +75,4 @@ def test_real_cv_golden() -> None:
         pytest.skip(f"Golden file created at {_GOLDEN_XML} — re-run to compare")
 
     golden_xml = _GOLDEN_XML.read_text(encoding="utf-8")
-    assert current_xml == golden_xml, (
-        "Rendered XML does not match the golden file. "
-        f"Delete {_GOLDEN_XML} and re-run to regenerate."
-    )
+    assert current_xml == golden_xml, f"Rendered XML does not match the golden file. Delete {_GOLDEN_XML} and re-run to regenerate."
