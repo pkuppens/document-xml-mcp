@@ -9,8 +9,6 @@ Covers:
 import io
 import zipfile
 
-import pytest
-
 from xml_processing_mcp.parsers.docx_parser import DocxParser
 from xml_processing_mcp.renderers.simple_xml_renderer import SimpleXmlRenderer
 
@@ -45,7 +43,7 @@ def _parse(xml: bytes) -> object:
 
 def test_empty_body():
     """<w:body/> with no children → body node has no children."""
-    xml = f'<w:document {_W_NS}><w:body/></w:document>'.encode()
+    xml = f"<w:document {_W_NS}><w:body/></w:document>".encode()
     doc = _parse(xml)
     body = doc.children[0]
     assert body.tag == "body"
@@ -58,13 +56,7 @@ def test_whitespace_only_paragraphs():
 
     Behaviour: DocxParser adds the paragraph node; SimpleXmlRenderer removes it.
     """
-    xml = (
-        f'<w:document {_W_NS}>'
-        "<w:body>"
-        "<w:p><w:r><w:t>   </w:t></w:r></w:p>"
-        "</w:body>"
-        "</w:document>"
-    ).encode()
+    xml = (f"<w:document {_W_NS}><w:body><w:p><w:r><w:t>   </w:t></w:r></w:p></w:body></w:document>").encode()
     doc = _parse(xml)
     # Parser adds it (whitespace is truthy in Python)
     nodes = _flatten(doc)
@@ -82,13 +74,7 @@ def test_paragraph_with_empty_runs():
 
     The parser's ``if text:`` guard drops paragraphs with no collected text.
     """
-    xml = (
-        f'<w:document {_W_NS}>'
-        "<w:body>"
-        "<w:p><w:r/></w:p>"
-        "</w:body>"
-        "</w:document>"
-    ).encode()
+    xml = (f"<w:document {_W_NS}><w:body><w:p><w:r/></w:p></w:body></w:document>").encode()
     doc = _parse(xml)
     nodes = _flatten(doc)
     paragraphs = [n for n in nodes if n.tag == "paragraph"]
@@ -99,7 +85,7 @@ def test_table_with_empty_cells():
     """2×2 table with no text in any cell → table and row nodes present; cell nodes present
     (cells are always added, even when cell_text is empty — text is set to None)."""
     xml = (
-        f'<w:document {_W_NS}>'
+        f"<w:document {_W_NS}>"
         "<w:body>"
         "<w:tbl>"
         "<w:tr><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc></w:tr>"
@@ -126,7 +112,7 @@ def test_table_with_empty_cells():
 
 def test_no_body_element():
     """Document XML without <w:body> → document with one empty body child."""
-    xml = f'<w:document {_W_NS}/>'.encode()
+    xml = f"<w:document {_W_NS}/>".encode()
     doc = _parse(xml)
     assert doc.tag == "document"
     assert doc.children[0].tag == "body"
@@ -140,7 +126,7 @@ def test_no_body_element():
 
 def _heading_xml(style_val: str, text: str = "Heading Text") -> bytes:
     return (
-        f'<w:document {_W_NS}>'
+        f"<w:document {_W_NS}>"
         "<w:body>"
         "<w:p>"
         f'<w:pPr><w:pStyle w:val="{style_val}"/></w:pPr>'
@@ -211,14 +197,7 @@ def test_heading_level_extraction():
 
 def _list_para(text: str) -> str:
     """Return a <w:p> with numPr (list item) and the given text."""
-    return (
-        "<w:p>"
-        "<w:pPr><w:numPr>"
-        '<w:ilvl w:val="0"/><w:numId w:val="1"/>'
-        "</w:numPr></w:pPr>"
-        f"<w:r><w:t>{text}</w:t></w:r>"
-        "</w:p>"
-    )
+    return f'<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>{text}</w:t></w:r></w:p>'
 
 
 def _plain_para(text: str) -> str:
@@ -228,12 +207,8 @@ def _plain_para(text: str) -> str:
 def test_list_items_grouped():
     """3 consecutive list items → exactly one <list> node with 3 <item> children."""
     xml = (
-        f'<w:document {_W_NS}>'
-        "<w:body>"
-        + _list_para("Item A")
-        + _list_para("Item B")
-        + _list_para("Item C")
-        + "</w:body>"
+        f"<w:document {_W_NS}>"
+        "<w:body>" + _list_para("Item A") + _list_para("Item B") + _list_para("Item C") + "</w:body>"
         "</w:document>"
     ).encode()
     doc = _parse(xml)
@@ -248,12 +223,8 @@ def test_list_items_grouped():
 def test_list_interrupted_by_paragraph():
     """list item, plain paragraph, list item → two separate <list> nodes in body."""
     xml = (
-        f'<w:document {_W_NS}>'
-        "<w:body>"
-        + _list_para("First")
-        + _plain_para("Break paragraph")
-        + _list_para("Second")
-        + "</w:body>"
+        f"<w:document {_W_NS}>"
+        "<w:body>" + _list_para("First") + _plain_para("Break paragraph") + _list_para("Second") + "</w:body>"
         "</w:document>"
     ).encode()
     doc = _parse(xml)
@@ -270,7 +241,7 @@ def test_list_item_empty_text():
     _collect_text returns '' → ``text or None`` sets text=None on the item node.
     """
     xml = (
-        f'<w:document {_W_NS}>'
+        f"<w:document {_W_NS}>"
         "<w:body>"
         "<w:p>"
         "<w:pPr><w:numPr>"
@@ -291,13 +262,10 @@ def test_list_item_empty_text():
 def test_list_followed_by_table():
     """List item followed by a table → both present in correct order in body.children."""
     xml = (
-        f'<w:document {_W_NS}>'
-        "<w:body>"
-        + _list_para("Only item")
-        + "<w:tbl>"
+        f"<w:document {_W_NS}>"
+        "<w:body>" + _list_para("Only item") + "<w:tbl>"
         "<w:tr><w:tc><w:p><w:r><w:t>Cell</w:t></w:r></w:p></w:tc></w:tr>"
-        "</w:tbl>"
-        + "</w:body>"
+        "</w:tbl>" + "</w:body>"
         "</w:document>"
     ).encode()
     doc = _parse(xml)
