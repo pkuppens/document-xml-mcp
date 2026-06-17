@@ -222,3 +222,6 @@ input/*
 !input/.gitkeep
 output/*
 !output/.gitkeep
+
+# Golden-file snapshot (generated on first test run; not committed)
+tests/fixtures/CV_Test_1_golden.xml

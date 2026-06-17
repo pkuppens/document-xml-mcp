@@ -51,7 +51,7 @@ asyncio_mode = "auto"
 markers = [
     "integration: marks tests as integration tests (requires uv on PATH)",
     "slow: marks tests as slow",
-    "real_file: marks tests that require input/CV_Test_1.docx",
+    "real_file: marks tests that use real fixture files from the input/ directory (deselect with '-m not real_file')",
 ]
 
 [tool.coverage.run]
@@ -61,6 +61,8 @@ omit = [
     "*/parsers/base.py",
     "*/sinks/base.py",
     "*/sources/base.py",
+    # Real-file regression tests: golden-file write path only runs on first run
+    "tests/test_real_docx.py",
     # Integration tests — excluded from normal coverage run
     "tests/test_integration_stdio.py",
 ]
