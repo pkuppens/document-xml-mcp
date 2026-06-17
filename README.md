@@ -21,13 +21,24 @@ uv run document-xml-mcp
 ## Run with Docker
 
 ```bash
-# Build and start (batch / stdio mode)
+# Build and start (batch / stdio mode — no port exposed)
 docker compose up --build
 
 # Place .docx files in ./input, XML output appears in ./output
+
+# Run in SSE mode (exposes port 8000 for HTTP/SSE clients)
+MCP_TRANSPORT=sse docker compose up --build
+
+# Run in streamable-http mode (exposes port 8000)
+MCP_TRANSPORT=streamable-http docker compose up --build
 ```
 
 The container reads from `/input` (read-only) and writes to `/output`.
+
+> **Note on healthcheck:** The default stdio mode does not open port 8000, so no
+> TCP-based healthcheck is configured. When running in SSE or streamable-http mode,
+> health monitoring is the operator's responsibility (e.g. add a custom healthcheck or
+> use an external probe).
 
 ---
 
@@ -39,6 +50,7 @@ an HTTP/SSE endpoint when started with `MCP_TRANSPORT=sse`, which n8n connects t
 
 ```bash
 # Start document-xml-mcp in SSE mode + n8n
+# MCP_TRANSPORT=sse is required — port 8000 must be open for n8n to connect
 MCP_TRANSPORT=sse docker compose --profile n8n up --build
 ```
 
@@ -335,9 +347,11 @@ docker-compose stacks, self-hosted servers, and externally accessible instances.
 
 ```bash
 # Start the server in SSE mode first (pick one):
-MCP_TRANSPORT=sse uv run document-xml-mcp                 # local
-MCP_TRANSPORT=sse docker compose up --build               # Docker
-MCP_TRANSPORT=sse docker compose --profile n8n up --build # with n8n
+MCP_TRANSPORT=sse uv run document-xml-mcp                        # local (SSE)
+MCP_TRANSPORT=streamable-http uv run document-xml-mcp            # local (streamable-http)
+MCP_TRANSPORT=sse docker compose up --build                      # Docker (SSE)
+MCP_TRANSPORT=streamable-http docker compose up --build          # Docker (streamable-http)
+MCP_TRANSPORT=sse docker compose --profile n8n up --build        # with n8n
 
 # Connect and parse a file (file read locally, sent as base64)
 uv run python examples/client_sse.py --docx input/CV_Test_1.docx
@@ -389,5 +403,5 @@ Possible future epics:
 - CV-specific document normalisation
 - n8n workflow examples ← see [docs/n8n-setup.md](docs/n8n-setup.md)
 - OpenAI agent workflow examples
-- HTTP transport and authentication
+- HTTP transport authentication (SSE and streamable-http modes are already supported)
 - Kubernetes deployment manifests
