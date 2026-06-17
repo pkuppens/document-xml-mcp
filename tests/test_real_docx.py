@@ -29,6 +29,13 @@ from xml_processing_mcp.sources.bytes_source import BytesSource
 _INPUT_DOCX = Path(__file__).parent.parent / "input" / "CV_Test_1.docx"
 _GOLDEN_XML = Path(__file__).parent / "fixtures" / "CV_Test_1_golden.xml"
 
+# Skip the entire module when the fixture file is absent (e.g. in CI).
+# The file is gitignored and must be provided manually for local runs.
+pytestmark = pytest.mark.skipif(
+    not _INPUT_DOCX.exists(),
+    reason=f"Fixture file not found: {_INPUT_DOCX}",
+)
+
 
 def _service() -> DocumentProcessingService:
     return DocumentProcessingService(Settings())
