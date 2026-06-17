@@ -46,6 +46,9 @@ strict = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=xml_processing_mcp --cov-report=term-missing"
+markers = [
+    "real_file: marks tests that use real fixture files from the input/ directory (deselect with '-m not real_file')",
+]
 
 [tool.coverage.run]
 omit = [
@@ -54,5 +57,7 @@ omit = [
     "*/parsers/base.py",
     "*/sinks/base.py",
     "*/sources/base.py",
+    # Real-file regression tests: golden-file write path only runs on first run
+    "tests/test_real_docx.py",
 ]
 
