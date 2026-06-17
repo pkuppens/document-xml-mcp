@@ -91,7 +91,7 @@ def _make_minimal_docx() -> bytes:
             ' xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
             "<w:body>"
             "<w:p><w:r><w:t>Hello Integration Test</w:t></w:r></w:p>"
-            '<w:sectPr/>'
+            "<w:sectPr/>"
             "</w:body>"
             "</w:document>",
         )
@@ -157,7 +157,4 @@ async def test_stdio_parse_file_disallowed_path():
                 # MCP-level error — path was rejected at the tool boundary
                 return
             data = json.loads(result.content[0].text)
-            assert "error" in data, (
-                "Expected an error response for disallowed path '/etc/passwd', "
-                f"but got: {data}"
-            )
+            assert "error" in data, f"Expected an error response for disallowed path '/etc/passwd', but got: {data}"
