@@ -33,6 +33,19 @@ Prerequisites
   server — parse_document_to_xml does not require the file to exist on the server.
 - For parse_file_to_xml and parse_batch_to_xml the file or directory must exist on the
   SERVER's filesystem; those tools use server-side paths.
+
+Server-side file paths (Docker vs local)
+-----------------------------------------
+parse_file_to_xml and parse_batch_to_xml operate on paths relative to the **server's**
+working directory (or absolute paths on the server's filesystem).
+
+- **Docker:** docker-compose.yml mounts the host directory ./input/ as /input inside the
+  container (read-only). Pass /input/yourfile.docx as the path argument.
+  Example: {"path": "/input/CV_Test_1.docx"}
+
+- **Local (no Docker):** paths are relative to the project root, i.e. the directory where
+  you run `uv run document-xml-mcp`. A file at ./input/CV_Test_1.docx is referenced as
+  input/CV_Test_1.docx (or its absolute path).
 """
 
 from __future__ import annotations

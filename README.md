@@ -294,6 +294,13 @@ Expected response shape:
 Python client scripts in `examples/` exercise the MCP protocol directly — useful for
 integration testing, CI smoke tests, and as a starting point for custom automation.
 
+| Script | Transport | When to use |
+|--------|-----------|-------------|
+| `examples/client_stdio.py` | stdio | Server runs on the same machine — client spawns it automatically |
+| `examples/client_sse.py` | HTTP/SSE | Server already running (Docker, remote, n8n stack) |
+
+For full details, prerequisites, and Docker path notes see [examples/README.md](examples/README.md).
+
 ### stdio client — local server
 
 Use when the server runs on the same machine. The client spawns the server as a child process.
