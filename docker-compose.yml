@@ -12,16 +12,17 @@ services:
       # Override to "sse" when using the n8n profile (set automatically below)
       MCP_TRANSPORT: ${MCP_TRANSPORT:-stdio}
     ports:
-      # SSE port — only relevant when MCP_TRANSPORT=sse
+      # SSE / streamable-http port — only relevant when MCP_TRANSPORT=sse or MCP_TRANSPORT=streamable-http
       - "8000:8000"
+    # Healthcheck is disabled for the default stdio mode because port 8000 is not
+    # open in stdio mode and a TCP check would always report unhealthy.
+    # When running in SSE or streamable-http mode (MCP_TRANSPORT=sse/streamable-http),
+    # health monitoring is the operator's responsibility (e.g. add a custom healthcheck
+    # or use an external probe).
     healthcheck:
-      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('localhost',8000),timeout=2)"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
+      disable: true
 
-  # ─── n8n (optional — start with: docker compose --profile n8n up) ─────────
+  # ─── n8n (optional — start with: MCP_TRANSPORT=sse docker compose --profile n8n up) ─
   n8n:
     image: docker.n8n.io/n8nio/n8n:latest
     profiles: [n8n]
@@ -41,7 +42,10 @@ services:
       - n8n_data:/home/node/.n8n
     depends_on:
       document-xml-mcp:
-        condition: service_healthy
+        # service_started is used because the healthcheck is disabled on document-xml-mcp.
+        # Ensure you set MCP_TRANSPORT=sse (or streamable-http) before starting this profile
+        # so that port 8000 is actually open when n8n connects.
+        condition: service_started
     restart: unless-stopped
 
   # ─── Ollama with GPU (optional — start with: docker compose --profile ollama up) ──
