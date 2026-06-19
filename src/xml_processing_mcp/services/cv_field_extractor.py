@@ -73,7 +73,7 @@ class CvFields:
 
 def _all_text(element: etree._Element) -> str:
     """Collect all text content from an element and its descendants."""
-    return " ".join(t.strip() for t in element.itertext() if t.strip())
+    return " ".join(t.strip() for t in element.itertext() if isinstance(t, str) and t.strip())
 
 
 def _section_key(title: str) -> str | None:
