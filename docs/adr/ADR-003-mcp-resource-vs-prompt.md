@@ -25,13 +25,13 @@ Misclassifying these leads to wrong client behavior: a client that calls `prompt
 ## Decision Rule
 
 **Use a Resource when:**
-1. The LLM needs to *read* it to know a structure, constraint, or fact before generating output
+1. **The LLM needs to *read* it to know a structure, constraint, or fact before generating output**
 2. It is reference data — a schema, example, glossary, or specification
 3. It has a natural URI (it "lives" at an address, like a document)
 4. Changing it changes what the LLM knows, not what the LLM does
 
 **Use a Prompt when:**
-1. The LLM needs to *follow* it as a task description or workflow
+1. **The LLM needs to *follow* it as a task description or workflow**
 2. It is parameterized — slots that get filled with per-call data (`{cv_xml}`, `{job_description}`)
 3. It describes a sequence of steps or a reasoning strategy
 4. Changing it changes what the LLM does, not what it knows
@@ -67,10 +67,12 @@ The export schema defines the XML structure the LLM must produce when rewriting 
 ### Assignment Description Format
 **Decision: Resource** — `cv://templates/assignment-format`
 
-The assignment format defines the expected structure of an incoming job description. The LLM reads it to know how to parse and interpret assignments. It is reference data, not a workflow.
+The assignment format defines the **schema/structure** of a well-formed job description — what fields are expected, what format they take, how to distinguish role requirements from company background. The LLM reads it to know how to parse and interpret assignments. It is reference data about the expected *shape* of an assignment, not a reference to any specific assignment.
 
-- Not parameterized
-- The LLM reads it to understand input → Resource
+> **Scope note:** This resource describes the structure of an assignment document, not the assignment data itself. Actual assignment content (from email, a job portal, a PDF) is supplied by the client at call time as a parameter to `prompts/get` — it is not stored in or read from the MCP server.
+
+- Not parameterized (same schema for all assignments)
+- The LLM reads it to understand the expected input structure → Resource
 - Has a natural URI: `cv://templates/assignment-format`
 - MIME type: `text/markdown` or `text/plain`
 
@@ -98,7 +100,51 @@ Parameterized. Tells the LLM to generate text following a pattern. → Prompt.
 
 ## Review Trigger
 
+> **Important:** These reclassification conditions arise naturally as the system evolves. Catching them early prevents clients from calling the wrong primitive and receiving confusing results.
+
 Revisit if:
-- A "resource" needs parameters → consider parameterized resource URI or reclassify as Prompt
+- A "resource" needs parameters → consider parameterized resource URI (e.g., `cv://users/{user_id}/schema`) or reclassify as Prompt
 - A "prompt" has no parameters and is purely reference text → consider reclassifying as Resource
 - Dynamic resources (per-user, per-CV) are needed → use parameterized URIs
+
+---
+
+## Sequence: CV Motivation Letter Generation
+
+How Resources and Prompts combine in a typical client workflow:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant MCP as MCP Server
+    participant LLM
+
+    Note over Client,MCP: Step 1 — Convert CV document to XML
+    Client->>MCP: tools/call parse_document_to_xml(cv_docx_base64)
+    MCP-->>Client: cv_xml (structured XML string)
+
+    Note over Client,MCP: Step 2 — Read static schemas (one-time or cached)
+    Client->>MCP: resources/read("cv://templates/export-schema")
+    MCP-->>Client: XML schema defining valid CV output structure
+    Client->>MCP: resources/read("cv://templates/assignment-format")
+    MCP-->>Client: Markdown schema defining expected assignment structure
+
+    Note over Client: Step 3 — Client has assignment text from external source
+    Note over Client: (email body, job portal scrape, PDF text — NOT from MCP server)
+
+    Note over Client,MCP: Step 4 — Retrieve instruction prompt
+    Client->>MCP: prompts/get("write_motivation_letter", {cv_xml, assignment, tone})
+    MCP-->>Client: PromptMessage[] (system + user messages, fully populated)
+
+    Note over Client,LLM: Step 5 — Execute prompt against LLM
+    Client->>LLM: Send PromptMessage[] (includes cv_xml, assignment, schema context)
+    LLM-->>Client: Generated motivation letter
+
+    Note over Client: MCP server is NOT involved in step 5
+```
+
+**Key observations:**
+- The MCP server participates in steps 1–4 only; the LLM call (step 5) is client-side.
+- Resources (steps 2) are typically read once and cached; they define *what* the LLM needs to know.
+- The prompt (step 4) is where per-call data (`cv_xml`, `assignment`) is injected; it defines *what* the LLM needs to do.
+- Assignment content arrives at the client from external channels; the MCP server stores only the structural schema for what a valid assignment looks like.
