@@ -25,16 +25,16 @@ Misclassifying these leads to wrong client behavior: a client that calls `prompt
 ## Decision Rule
 
 **Use a Resource when:**
-1. **The LLM needs to *read* it to know a structure, constraint, or fact before generating output**
+1. The LLM needs to *read* it to know a structure, constraint, or fact before generating output
 2. It is reference data — a schema, example, glossary, or specification
 3. It has a natural URI (it "lives" at an address, like a document)
-4. Changing it changes what the LLM knows, not what the LLM does
+4. **Changing it changes what the LLM knows, not what the LLM does**
 
 **Use a Prompt when:**
-1. **The LLM needs to *follow* it as a task description or workflow**
+1. The LLM needs to *follow* it as a task description or workflow
 2. It is parameterized — slots that get filled with per-call data (`{cv_xml}`, `{job_description}`)
 3. It describes a sequence of steps or a reasoning strategy
-4. Changing it changes what the LLM does, not what it knows
+4. **Changing it changes what the LLM does, not what it knows**
 
 **Quick test:** Replace the template with "read this carefully" vs "follow these instructions." Which sounds right? If "read this," it's a Resource. If "follow these," it's a Prompt.
 
