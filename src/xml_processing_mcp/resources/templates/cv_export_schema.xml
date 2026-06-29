@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CV Export Schema — target structure for document-xml-mcp output
+
+  This file defines the expected XML structure produced by parse_document_to_xml
+  when processing a CV/resume DOCX file. Use it as reference when:
+  - Writing prompts that generate or rewrite CV XML
+  - Validating that parsed CV XML has the expected structure
+  - Building downstream parsers that consume CV XML
+
+  Key rules:
+  - All elements use lowercase tag names (document, body, section, heading, etc.)
+  - Sections are bounded by heading elements; the section's "title" attribute
+    captures the heading text and "class" captures the Word style name
+  - Lists use <list><item> nesting; tables use <table><row><cell> nesting
+  - Text content is always in leaf elements (heading, paragraph, item, cell)
+  - Attributes with empty, "none", "false", or "0" values are omitted
+-->
+<document>
+  <body>
+
+    <!-- Person's name — typically the document title, Heading1 or Title style -->
+    <heading level="1" class="Title">Firstname Lastname</heading>
+
+    <!--
+      Contact section — often a paragraph or table near the top.
+      Email, phone, LinkedIn, and location may appear as paragraphs or table cells.
+    -->
+    <section class="Heading1" title="Contact">
+      <paragraph>email@example.com | +31 6 12345678 | linkedin.com/in/handle | City, Country</paragraph>
+    </section>
+
+    <!--
+      Profile / Summary — a brief professional narrative.
+      Typically 2–5 sentences.
+    -->
+    <section class="Heading1" title="Profile">
+      <paragraph>
+        Senior [role] with [N] years of experience in [domain]. Specialises in [area].
+        Passionate about [interest]. Looking for [type of role].
+      </paragraph>
+    </section>
+
+    <!--
+      Skills — usually a list of technologies, tools, and competencies.
+      May appear as a flat list, grouped list, or table.
+    -->
+    <section class="Heading1" title="Skills">
+      <list>
+        <item>Skill or technology 1</item>
+        <item>Skill or technology 2</item>
+        <item>Skill or technology 3</item>
+      </list>
+    </section>
+
+    <!--
+      Experience — work history, usually in reverse chronological order.
+      Each position may use headings, tables, paragraphs, or lists.
+    -->
+    <section class="Heading1" title="Experience">
+
+      <!-- Option A: table format (year/period, role, company, description) -->
+      <table>
+        <row>
+          <cell>Period</cell>
+          <cell>Role</cell>
+          <cell>Company</cell>
+          <cell>Description</cell>
+        </row>
+        <row>
+          <cell>2022 – present</cell>
+          <cell>Senior Data Engineer</cell>
+          <cell>Company Name</cell>
+          <cell>Built scalable data pipelines; reduced processing time by 40%.</cell>
+        </row>
+      </table>
+
+      <!-- Option B: sub-heading + list format -->
+      <heading level="2" class="Heading2">Senior Data Engineer — Company Name (2022–present)</heading>
+      <list>
+        <item>Built scalable data pipelines in Python and Apache Spark.</item>
+        <item>Reduced processing time by 40% through query optimisation.</item>
+      </list>
+
+    </section>
+
+    <!--
+      Education — degrees, institutions, graduation years.
+    -->
+    <section class="Heading1" title="Education">
+      <table>
+        <row>
+          <cell>Year</cell>
+          <cell>Degree</cell>
+          <cell>Institution</cell>
+        </row>
+        <row>
+          <cell>2019</cell>
+          <cell>MSc Computer Science</cell>
+          <cell>University Name</cell>
+        </row>
+      </table>
+    </section>
+
+    <!--
+      Languages — spoken languages and proficiency levels.
+    -->
+    <section class="Heading1" title="Languages">
+      <list>
+        <item>Dutch — Native</item>
+        <item>English — Fluent (C1)</item>
+      </list>
+    </section>
+
+    <!--
+      Certifications / Courses — optional section.
+    -->
+    <section class="Heading1" title="Certifications">
+      <list>
+        <item>AWS Solutions Architect Associate (2023)</item>
+        <item>Google Professional Data Engineer (2022)</item>
+      </list>
+    </section>
+
+  </body>
+</document>

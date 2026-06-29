@@ -1,4 +1,4 @@
-"""MCP server — four tools for document-to-XML processing."""
+"""MCP server — tools, prompts, and resources for document-to-XML processing and CV intelligence."""
 
 import logging
 import os
@@ -15,6 +15,10 @@ from xml_processing_mcp.models import (
     ParseFileRequest,
     SupportedTypesResponse,
 )
+from xml_processing_mcp.prompts.cv_analysis import analyze_cv_gaps_prompt, answer_cv_questions_prompt
+from xml_processing_mcp.prompts.cv_generation import rewrite_cv_for_assignment_prompt, write_motivation_letter_prompt
+from xml_processing_mcp.resources.cv_resources import get_assignment_format, get_cv_export_schema
+from xml_processing_mcp.services.cv_field_extractor import extract_cv_fields as _extract_cv_fields
 from xml_processing_mcp.services.document_processing_service import DocumentProcessingService
 from xml_processing_mcp.sinks.file_sink import FileSink
 from xml_processing_mcp.sources.bytes_source import Base64Source
@@ -162,6 +166,109 @@ def parse_batch_to_xml(
 
     _log.info("parse_batch_to_xml done processed=%d failed=%d", processed, failed)
     return ParseBatchResponse(processed=processed, failed=failed, results=results).model_dump()
+
+
+@mcp.tool()
+def extract_cv_fields(xml: str) -> dict:
+    """Extract structured fields from CV XML into a JSON object.
+
+    Parses the clean XML produced by parse_document_to_xml and returns
+    named fields: name, contact (email, phone, linkedin), summary, skills,
+    experience, education, languages, certifications, and warnings.
+
+    Use this after parse_document_to_xml to make the CV machine-readable
+    for downstream matching, gap analysis, or storage.
+
+    Parameters
+    ----------
+    xml:
+        CV XML string as returned by parse_document_to_xml or parse_file_to_xml.
+        Must be well-formed XML.
+    """
+    _log.info("tool=extract_cv_fields xml_len=%d", len(xml))
+    try:
+        result = _extract_cv_fields(xml)
+        _log.info(
+            "extract_cv_fields OK name=%r skills=%d experience=%d",
+            result.get("name"),
+            len(result.get("skills", [])),
+            len(result.get("experience", [])),
+        )
+        return result
+    except Exception as exc:
+        _log.warning("extract_cv_fields FAILED: %s", exc, exc_info=True)
+        raise
+
+
+# --- CV Prompt Templates ---
+# Prompts are reusable LLM instruction templates. The server returns the template;
+# the MCP client sends it to the LLM. See docs/adr/ADR-002-mcp-prompt-ownership.md.
+
+
+@mcp.prompt(
+    description="Identify skill and experience gaps between a CV and a job description. "
+    "Pass cv_xml from parse_document_to_xml and the job description as plain text.",
+)
+def analyze_cv_gaps(cv_xml: str, job_description: str) -> list[dict]:
+    """Gap analysis: compare CV XML against a job description and list missing skills/experience."""
+    return analyze_cv_gaps_prompt(cv_xml, job_description)
+
+
+@mcp.prompt(
+    description="Answer a specific question about a CV based strictly on its XML content. "
+    "Suitable for: years of experience, companies worked for, highest degree, etc.",
+)
+def answer_cv_questions(cv_xml: str, question: str) -> list[dict]:
+    """Q&A over CV XML: answer a question based only on the CV content."""
+    return answer_cv_questions_prompt(cv_xml, question)
+
+
+@mcp.prompt(
+    description="Write a tailored motivation letter for a specific assignment. "
+    "tone options: 'professional' (default), 'enthusiastic', 'concise'.",
+)
+def write_motivation_letter(cv_xml: str, assignment: str, tone: str = "professional") -> list[dict]:
+    """Generate a motivation letter tailored to an assignment, drawing on CV XML content."""
+    return write_motivation_letter_prompt(cv_xml, assignment, tone)
+
+
+@mcp.prompt(
+    description="Rewrite and tailor a CV for a specific assignment. "
+    "Reorders and rephrases existing content — does not fabricate experience. "
+    "target_format: 'xml' (default) or 'markdown'.",
+)
+def rewrite_cv_for_assignment(cv_xml: str, assignment: str, target_format: str = "xml") -> list[dict]:
+    """Tailor CV XML for a specific assignment by emphasising the most relevant experience."""
+    return rewrite_cv_for_assignment_prompt(cv_xml, assignment, target_format)
+
+
+# --- CV Resources ---
+# Resources are static reference data the LLM reads as context.
+# See docs/adr/ADR-003-mcp-resource-vs-prompt.md.
+
+
+@mcp.resource(
+    "cv://templates/export-schema",
+    name="CV Export Schema",
+    description="XML structure produced by parse_document_to_xml for CV/resume documents. "
+    "Use as reference when generating or validating CV XML output.",
+    mime_type="application/xml",
+)
+def cv_export_schema() -> str:
+    """Return the annotated CV XML schema."""
+    return get_cv_export_schema()
+
+
+@mcp.resource(
+    "cv://templates/assignment-format",
+    name="Assignment Description Format",
+    description="Expected structure of a job description / assignment used with analyze_cv_gaps "
+    "and write_motivation_letter prompts. Includes required and optional fields.",
+    mime_type="text/markdown",
+)
+def assignment_format() -> str:
+    """Return the assignment description format template."""
+    return get_assignment_format()
 
 
 def _start_transport(transport: str) -> None:
