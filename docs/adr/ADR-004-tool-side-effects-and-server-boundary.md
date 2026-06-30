@@ -1,8 +1,11 @@
 # ADR-004: Tool Side-Effects and MCP Server Boundary
 
-**Status:** Accepted
+**Status:** Partially Superseded
 **Date:** 2026-06-18
 **Issue:** [#23](https://github.com/pkuppens/document-xml-mcp/issues/23)
+**Superseded in part by:** ADR-006 (CvRecord schema), ADR-007 (Entra ID as CV identity), ADR-008 (taxonomy governance)
+
+**What changed:** CV persistence (`store_cv` keyed by Entra ID) and Knowledge Area Taxonomy management are now in-scope for this server. The "no external service dependencies" rule is relaxed for these two backing stores. The `store_cv` classification below is overridden — see ADR-007. All other decisions (no webhook, no assignment search, no LLM calls inside tools) remain in force.
 
 ---
 
@@ -23,12 +26,14 @@ Proposed new operations with side effects:
 
 ---
 
-## Server's Single Responsibility
+## Server's Responsibility
 
-> **This server converts documents to structured XML. It does not own, manage, or persist application data.**
+> **This server converts documents to structured XML, extracts structured CV data, and manages the CV backing store for a known set of users.**
 
-Everything else is out of scope. The server's allowed side effects are:
+Allowed side effects:
 - Writing XML output to its own configured filesystem paths (existing `FileSink` pattern)
+- Reading and writing to the CV backing store (CvRecord storage keyed by Entra ID)
+- Reading and writing to the Knowledge Area Taxonomy store (`TaxonomyStore` abstraction)
 - Logging
 
 ---
@@ -49,19 +54,10 @@ Otherwise, the operation belongs in:
 
 ## Classification of Candidate Operations
 
-### `store_cv(cv_id, xml, metadata)` — write to database
-**Decision: Client-owned or separate server**
+### `store_cv(entra_id, cv_record)` — write CvRecord to backing store
+**Decision: In this server** ✓ *(original decision reversed — see ADR-007)*
 
-This server does not own a database. Introducing a database dependency would:
-- Require configuring credentials (connection strings, auth tokens) in this server
-- Couple document processing to a specific storage technology
-- Violate the single-responsibility boundary
-
-Different clients store differently: one uses PostgreSQL, another uses MongoDB, another writes to S3. The server cannot serve all of these without becoming a persistence server — which is a different server.
-
-**Where it belongs:** The client calls `parse_document_to_xml`, receives XML, then stores it using its own persistence layer. Or: a dedicated `cv-persistence-mcp` server wraps the database and exposes `store_cv` as its tool.
-
-**Note on the Sink pattern:** If a `DatabaseSink` were added to this project, it would be an internal pipeline component (not a Tool) — and would still require external credentials. The Sink pattern is appropriate for filesystem writes (owned by this server). It is not appropriate for external services.
+CV persistence is now in scope. The server owns a backing store for CvRecords keyed by Entra ID, with audit-trail history. Extraction (`extract_cv_fields`) remains pure; storage is an explicit separate tool call made only after human review. See ADR-007 for the full rationale.
 
 ### `send_to_n8n_webhook(xml, webhook_url)` — HTTP POST
 **Decision: Client-owned**
@@ -93,11 +89,11 @@ Any operation that wraps an LLM call inside a Tool is an anti-pattern. The corre
 
 ## Consequences
 
-1. `store_cv`, `send_to_n8n_webhook`, `search_assignments` will NOT be implemented as Tools in this server.
-2. `DatabaseSink` will NOT be added to this codebase in its current scope.
-3. `extract_cv_fields` WILL be implemented as a Tool here (pure computation, no side effects).
-4. `score_cv_vs_job` WILL be implemented as a Prompt, not a Tool.
-5. Clients that need persistence after receiving XML from this server implement it themselves, or connect to a purpose-built persistence MCP server.
+1. `store_cv` WILL be implemented as a Tool in this server (explicit, after human review, keyed by Entra ID). *(Original decision reversed — see ADR-007.)*
+2. A `TaxonomyStore` abstraction WILL be added for Knowledge Area Taxonomy management. *(See ADR-008.)*
+3. `send_to_n8n_webhook`, `search_assignments` will NOT be implemented as Tools in this server.
+4. `extract_cv_fields` WILL be implemented as a Tool here (pure computation, no side effects).
+5. `score_cv_vs_job` WILL be implemented as a Prompt, not a Tool.
 6. The n8n integration pattern (n8n calls this server, then handles routing) remains the reference integration pattern.
 
 ---

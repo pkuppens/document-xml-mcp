@@ -210,3 +210,9 @@ Given a use case, which MCP primitive should it be?
 | Assignment description format | Resource | Reference data LLM reads, not follows |
 | Write CV to database | Tool (or client) | Side effect; see ADR-004 for ownership |
 | List supported document types | Tool | Lightweight metadata query |
+| Check CvRecord completeness + taxonomy | Prompt | LLM checks; server provides the recipe |
+| Cross-check CvRecord against source XML | Prompt | LLM checks; requires XML + CvRecord |
+| Store approved CvRecord | Tool | Side effect; explicit, never automatic |
+| Retrieve stored CV by ID | Resource | `cv://cvs/{cv_id}` — CvRecord JSON |
+| Knowledge Area Taxonomy | Resource | `cv://knowledge-areas/taxonomy` — controlled vocabulary |
+| Personality Trait Vocabulary | Resource | `cv://knowledge-areas/personality-traits` — traits with definitions and trigger words |
