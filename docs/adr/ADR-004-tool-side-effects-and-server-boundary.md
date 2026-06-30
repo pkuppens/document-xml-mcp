@@ -39,6 +39,7 @@ A side-effecting operation belongs in **this server** only if:
 1. It writes to a resource this server already owns (its configured filesystem)
 2. It does not introduce new external service dependencies (databases, APIs, message queues)
 3. It is a natural completion of an existing tool's operation (not a new capability)
+4. It does not require new credentials or authentication scope — any operation that introduces API keys, OAuth tokens, or connection strings belongs in a dedicated server that owns and isolates that credential
 
 Otherwise, the operation belongs in:
 - **The client** — if it uses client-owned infrastructure (the client's database, the client's storage)
