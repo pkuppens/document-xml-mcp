@@ -20,11 +20,31 @@ A **server-side function** that the LLM invokes to perform computation or trigge
 
 **When to use:** Any operation that requires computation, data retrieval, or side effects that the LLM cannot perform itself.
 
+**Naming convention:** MCP best practices recommend `{service}_{action}_{resource}` with a service prefix (e.g. `docxml_parse_document_to_xml`) so tool names remain unambiguous when multiple servers are active in the same client session. This project uses short names without a prefix (`parse_document_to_xml`) as a deliberate trade-off for a single-server deployment; if this server is ever used alongside other MCP servers, consider adding the prefix.
+
 **Project examples:**
 - `parse_document_to_xml(filename, content_base64)` — decodes and parses DOCX bytes → clean XML
 - `parse_file_to_xml(path)` — reads a file from the server's filesystem and parses it
 - `parse_batch_to_xml(input_dir, output_dir)` — processes a directory of DOCX files
 - `extract_cv_fields(xml)` *(proposed)* — parses CV XML → structured JSON
+
+**Annotations:** MCP tools should declare behavioral hints so clients can reason about safety and caching:
+
+| Annotation | Type | Default | Meaning |
+|---|---|---|---|
+| `readOnlyHint` | bool | false | Tool does not modify any state |
+| `destructiveHint` | bool | true | Tool may perform destructive writes |
+| `idempotentHint` | bool | false | Repeated calls with same args have no additional effect |
+| `openWorldHint` | bool | true | Tool interacts with external entities outside the server |
+
+Expected values for this server's tools:
+
+| Tool | `readOnlyHint` | `destructiveHint` | `idempotentHint` | `openWorldHint` |
+|---|---|---|---|---|
+| `parse_document_to_xml` | true | false | true | false |
+| `parse_file_to_xml` | true | false | true | false |
+| `parse_batch_to_xml` | false | false | true | false |
+| `extract_cv_fields` | true | false | true | false |
 
 **Anti-pattern:** Wrapping an LLM call inside a tool. If the "computation" is just prompting an LLM, expose a Prompt instead — it's cheaper, faster, and more transparent.
 
@@ -98,8 +118,8 @@ A process that exposes Tools, Prompts, and/or Resources over the MCP protocol. C
 
 **Transport options:**
 - `stdio` — spawned as child process; used for local Claude Desktop / MCP Inspector
-- `sse` — HTTP Server-Sent Events on port 8000; used for Docker, n8n, remote clients
-- `streamable-http` — HTTP streaming variant
+- `streamable-http` — recommended for remote/multi-client scenarios (Docker, n8n, cloud deployments)
+- `sse` — HTTP Server-Sent Events; **deprecated** in favour of `streamable-http`; still used by the current n8n/Docker setup pending migration
 
 **Single responsibility of this server:** Convert DOCX documents to clean, structured XML. See [ADR-005](adr/ADR-005-cv-intelligence-server-boundary.md).
 
@@ -190,3 +210,9 @@ Given a use case, which MCP primitive should it be?
 | Assignment description format | Resource | Reference data LLM reads, not follows |
 | Write CV to database | Tool (or client) | Side effect; see ADR-004 for ownership |
 | List supported document types | Tool | Lightweight metadata query |
+| Check CvRecord completeness + taxonomy | Prompt | LLM checks; server provides the recipe |
+| Cross-check CvRecord against source XML | Prompt | LLM checks; requires XML + CvRecord |
+| Store approved CvRecord | Tool | Side effect; explicit, never automatic |
+| Retrieve stored CV by ID | Resource | `cv://cvs/{cv_id}` — CvRecord JSON |
+| Knowledge Area Taxonomy | Resource | `cv://knowledge-areas/taxonomy` — controlled vocabulary |
+| Personality Trait Vocabulary | Resource | `cv://knowledge-areas/personality-traits` — traits with definitions and trigger words |
